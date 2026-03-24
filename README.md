@@ -1,0 +1,77 @@
+# trackerLLM Funnel Pipeline
+
+HTML을 입력으로 받아 퍼널 분석 결과(JSON)와 시각화 오버레이 JS를 생성하는 프로젝트입니다.
+
+## 구성
+
+- `funnel_pipeline/run_funnel_langgraph.py`
+  - HTML -> compressed HTML -> LLM 분석 -> `funnel.json` 생성
+- `funnel_pipeline/run_funnel_selector_mapping.py`
+  - `funnel.json`의 id를 CSS selector로 매핑
+  - `funnel_selector_output.json`, `funnel_overlay.js` 생성
+- `prompts/html_to_funnel_prompt.txt`
+  - 퍼널 분석 프롬프트
+- `examples/input/input.html`
+  - 예시 입력 HTML
+- `examples/output/*`
+  - 예시 출력 파일
+
+## 설치
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+## 환경 변수
+
+루트에 `.env` 파일을 만들고 최소 아래 값을 설정하세요.
+
+```env
+OPENAI_API_KEY=your_openai_api_key
+```
+
+선택(LangSmith 추적):
+
+```env
+LANGSMITH_TRACING=true
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+LANGSMITH_API_KEY=your_langsmith_api_key
+LANGSMITH_PROJECT=projectname
+```
+
+## 사용 방법
+
+### 1) 퍼널 JSON 생성 (LangGraph)
+
+```bash
+python3 funnel_pipeline/run_funnel_langgraph.py \
+  --input-html examples/input/input.html \
+  --output examples/output/funnel.json
+```
+
+### 2) selector 매핑 + 오버레이 JS 생성
+
+현재 `run_funnel_selector_mapping.py`는 입력을 `input.html`, `funnel.json`으로 하드코딩해서 읽습니다.
+먼저 파일을 루트로 복사한 뒤 실행하세요.
+
+```bash
+cp examples/input/input.html input.html
+cp examples/output/funnel.json funnel.json
+
+python3 funnel_pipeline/run_funnel_selector_mapping.py \
+  --output-json examples/output/funnel_selector_output.json \
+  --output-js examples/output/funnel_overlay.js
+```
+
+## 브라우저 오버레이 확인
+
+1. 대상 페이지를 브라우저에서 연다.
+2. `examples/output/funnel_overlay.js` 내용을 콘솔에 붙여넣어 실행한다.
+3. 퍼널 박스가 섹션 위에 렌더링된다.
+
+## 출력 파일
+
+- `examples/output/funnel.json`: LLM 퍼널 분류 결과
+- `examples/output/funnel_selector_output.json`: selector 매핑 결과
+- `examples/output/funnel_overlay.js`: 브라우저 주입용 시각화 스크립트
+- `examples/output/output.txt`: compressed HTML 예시

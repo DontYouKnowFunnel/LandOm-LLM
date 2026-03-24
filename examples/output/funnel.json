@@ -1,0 +1,42 @@
+[
+  {
+    "id": "eca26941",
+    "funnel": "HERO",
+    "confidence": 0.97
+  },
+  {
+    "id": "ea66c06c",
+    "funnel": "VALUE_PROP",
+    "confidence": 0.93
+  },
+  {
+    "id": "98c6f2c2",
+    "funnel": "FEATURE",
+    "confidence": 0.95
+  },
+  {
+    "id": "13cee27a",
+    "funnel": "SOCIAL_PROOF",
+    "confidence": 0.9
+  },
+  {
+    "id": "3a170a9f",
+    "funnel": "PRICING",
+    "confidence": 0.98
+  },
+  {
+    "id": "12426c95",
+    "funnel": "CTA",
+    "confidence": 0.92
+  },
+  {
+    "id": "449daf85",
+    "funnel": "FAQ",
+    "confidence": 0.96
+  },
+  {
+    "id": "c81e728d",
+    "funnel": "POPUP",
+    "confidence": 0.99
+  }
+]

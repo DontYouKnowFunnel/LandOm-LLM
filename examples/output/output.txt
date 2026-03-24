@@ -1,0 +1,54 @@
+<body> id=d41d8cd9
+<header id="site-header"> id=cfcd2084
+<nav> id=c7763203
+<a> text="Acme Notes" id=a4a03e33
+<a> text="Features" id=ace5a137
+<a> text="Pricing" id=6f43951b
+<a> text="FAQ" id=c7fc0ec9
+<main> id=c4ca4238
+<section id="hero"> id=eca26941
+<h1> text="Write clear team notes in half the time" id=cf98d0c1
+<p> text="Acme Notes turns messy meeting logs into searchable action items." id=a0d7576a
+<button> text="Start free trial" id=c63cbd1a
+<section id="value-prop"> id=ea66c06c
+<h2> text="Why teams switch to Acme Notes" id=fbd2dc72
+<p> text="Stay aligned with structured summaries and automatic next-step tracking." id=2f221a18
+<section id="features"> id=98c6f2c2
+<article> id=68915b65
+<h3> text="Smart summary" id=a4d22923
+<p> text="Auto-summarize meetings with key decisions and owners." id=c822481e
+<article> id=6151f5ab
+<h3> text="Action tracking" id=9d948324
+<p> text="Assign due dates and sync tasks with your existing workflow." id=361fe970
+<article> id=e61730e6
+<h3> text="Searchable memory" id=542cb16e
+<p> text="Find notes and commitments instantly across all projects." id=ef2b0842
+<section id="social-proof"> id=13cee27a
+<h2> text="Trusted by 2,500+ product teams" id=c54cef8a
+<blockquote> text=""Our weekly planning is finally predictable."" id=b425e0c7
+<p> text="- Mina, Product Lead at Northstar" id=bc5861c5
+<section id="pricing"> id=3a170a9f
+<h2> text="Simple pricing" id=8d6638d5
+<div> id=a4e1cd31
+<h3> text="Starter" id=9cb86199
+<p> text="$12 / seat / month" id=60ef9736
+<div> id=6b735339
+<h3> text="Growth" id=a269e877
+<p> text="$24 / seat / month" id=d6e634b8
+<section id="cta"> id=12426c95
+<h2> text="Start your 14-day trial" id=abf3248a
+<button> text="Try Acme Notes" id=0f42756e
+<section id="faq"> id=449daf85
+<h2> text="Frequently asked questions" id=1db3d68b
+<details> id=eb1e930f
+<summary> text="Do you support Korean?" id=4591970c
+<p> text="Yes, Korean and English are both supported." id=2a8861a1
+<details> id=0770a18a
+<summary> text="Can I export notes?" id=47420c41
+<p> text="You can export markdown and CSV at any time." id=39dfcfc6
+<div id="signup-modal" role="dialog"> id=c81e728d
+<h2> text="Get early access" id=8303abbb
+<p> text="Enter your email for invitation." id=8fbdbf55
+<form> id=3c46a040
+<input> id=c3d8636e
+<button> text="Request invite" id=61e70e07

@@ -1,0 +1,65 @@
+{
+  "summary": {
+    "total": 8,
+    "matched": 8,
+    "unmatched": 0
+  },
+  "items": [
+    {
+      "id": "eca26941",
+      "funnel": "HERO",
+      "confidence": 0.97,
+      "selector": "section[id=\"hero\"]",
+      "status": "matched"
+    },
+    {
+      "id": "ea66c06c",
+      "funnel": "VALUE_PROP",
+      "confidence": 0.93,
+      "selector": "section[id=\"value-prop\"]",
+      "status": "matched"
+    },
+    {
+      "id": "98c6f2c2",
+      "funnel": "FEATURE",
+      "confidence": 0.95,
+      "selector": "section[id=\"features\"]",
+      "status": "matched"
+    },
+    {
+      "id": "13cee27a",
+      "funnel": "SOCIAL_PROOF",
+      "confidence": 0.9,
+      "selector": "section[id=\"social-proof\"]",
+      "status": "matched"
+    },
+    {
+      "id": "3a170a9f",
+      "funnel": "PRICING",
+      "confidence": 0.98,
+      "selector": "section[id=\"pricing\"]",
+      "status": "matched"
+    },
+    {
+      "id": "12426c95",
+      "funnel": "CTA",
+      "confidence": 0.92,
+      "selector": "section[id=\"cta\"]",
+      "status": "matched"
+    },
+    {
+      "id": "449daf85",
+      "funnel": "FAQ",
+      "confidence": 0.96,
+      "selector": "section[id=\"faq\"]",
+      "status": "matched"
+    },
+    {
+      "id": "c81e728d",
+      "funnel": "POPUP",
+      "confidence": 0.99,
+      "selector": "div[id=\"signup-modal\"]",
+      "status": "matched"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+beautifulsoup4==4.13.3
+langgraph==0.2.67
+openai==1.68.2
+python-dotenv==1.0.1
