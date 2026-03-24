@@ -1,4 +1,4 @@
-# trackerLLM Funnel Pipeline
+# LandOm Funnel Pipeline
 
 HTML을 입력으로 받아 퍼널 분석 결과(JSON)와 시각화 오버레이 JS를 생성하는 프로젝트입니다.
 
