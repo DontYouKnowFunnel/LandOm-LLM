@@ -30,17 +30,17 @@ def build_overlay_js(mapped_items):
   const STYLE_ID = "__funnel_overlay_style__";
   const funnelColors = {{
     HERO: "#ef4444",
-    VALUE_PROP: "#f97316",
-    FEATURE: "#eab308",
-    SOCIAL_PROOF: "#22c55e",
-    TRUST: "#06b6d4",
-    PRICING: "#3b82f6",
-    CTA: "#6366f1",
-    INPUT_FORM: "#a855f7",
-    CHECKOUT: "#ec4899",
-    INTERACTIVE: "#14b8a6",
-    FAQ: "#84cc16",
-    POPUP: "#f43f5e"
+    PROBLEM: "#f97316",
+    TARGET: "#eab308",
+    USE_CASE: "#22c55e",
+    FEATURE: "#14b8a6",
+    VALUE_PROP: "#3b82f6",
+    SOCIAL_PROOF: "#06b6d4",
+    PRICING: "#6366f1",
+    FAQ: "#a855f7",
+    CTA_SECTION: "#ec4899",
+    CTA: "#ec4899",
+    GENERIC: "#94a3b8"
   }};
 
   const oldRoot = document.getElementById(ROOT_ID);
@@ -106,7 +106,7 @@ def build_overlay_js(mapped_items):
       const label = document.createElement("div");
       label.className = "funnel-label";
       label.style.background = color;
-      label.textContent = `${{item.funnel}} (${{Number(item.confidence || 0).toFixed(2)}})`;
+      label.textContent = `${{item.funnel}}`;
       box.appendChild(label);
       root.appendChild(box);
     }});
@@ -132,8 +132,8 @@ def main() -> None:
     args = parse_args()
     spec = CompressionSpec()
 
-    html = Path("input.html").read_text(encoding="utf-8")
-    raw = json.loads(Path("funnel.json").read_text(encoding="utf-8"))
+    html = Path(args.input_html).read_text(encoding="utf-8")
+    raw = json.loads(Path(args.funnel_json).read_text(encoding="utf-8"))
 
     if not isinstance(raw, list):
         raise RuntimeError("funnel-json은 배열(JSON list) 형태여야 합니다.")
@@ -145,15 +145,7 @@ def main() -> None:
         id_key="id",
     )
 
-    matched = sum(1 for item in mapped_items if item.get("status") == "matched")
-    result = {
-        "summary": {
-            "total": len(mapped_items),
-            "matched": matched,
-            "unmatched": len(mapped_items) - matched,
-        },
-        "items": mapped_items,
-    }
+    result = mapped_items
 
     output_json_path = Path(args.output_json)
     output_json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
