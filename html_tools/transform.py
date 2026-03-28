@@ -127,6 +127,15 @@ def parse_html_root(html: str, spec: CompressionSpec) -> Tag:
     return soup.body if soup.body else soup
 
 
+def extract_body_html(html: str) -> str:
+    """전체 HTML 문서에서 body 태그만 추출해 반환합니다. body가 없으면 원문을 반환합니다."""
+    soup = BeautifulSoup(html, "html.parser")
+    body = soup.body
+    if body is None:
+        return html
+    return str(body)
+
+
 def iter_kept_nodes(root: Tag, spec: CompressionSpec) -> Iterator[Tuple[Tag, List[int], str]]:
     """정책을 통과한 노드를 `(node, path, [text])` 형태로 순회하며 생성합니다."""
     # node: 실제 Element 객체

@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from html_tools.compress import dom_to_compressed_lines
 from html_tools.spec import CompressionSpec
+from html_tools.transform import extract_body_html
 
 
 PROMPT_PATH = Path("prompts/html_to_funnel_prompt.txt")
@@ -22,6 +23,7 @@ PROMPT_PATH = Path("prompts/html_to_funnel_prompt.txt")
 
 class FunnelState(TypedDict, total=False):
     input_html: str
+    body_html: str
     prompt_template: str
     compressed_html: str
     prompt: str
@@ -34,9 +36,14 @@ def load_prompt_node(state: FunnelState) -> FunnelState:
     return {"prompt_template": prompt_template}
 
 
+def extract_body_node(state: FunnelState) -> FunnelState:
+    body_html = extract_body_html(state["input_html"])
+    return {"body_html": body_html}
+
+
 def compress_html_node(state: FunnelState) -> FunnelState:
     spec = CompressionSpec()
-    compressed_html = dom_to_compressed_lines(state["input_html"], spec=spec)
+    compressed_html = dom_to_compressed_lines(state["body_html"], spec=spec)
     return {"compressed_html": compressed_html}
 
 
@@ -76,13 +83,15 @@ def validate_and_format_json_node(state: FunnelState) -> FunnelState:
 def build_graph():
     graph = StateGraph(FunnelState)
     graph.add_node("load_prompt", load_prompt_node)
+    graph.add_node("extract_body", extract_body_node)
     graph.add_node("compress_html", compress_html_node)
     graph.add_node("compose_prompt", compose_prompt_node)
     graph.add_node("call_openai", call_openai_node)
     graph.add_node("validate_json", validate_and_format_json_node)
 
     graph.add_edge(START, "load_prompt")
-    graph.add_edge("load_prompt", "compress_html")
+    graph.add_edge("load_prompt", "extract_body")
+    graph.add_edge("extract_body", "compress_html")
     graph.add_edge("compress_html", "compose_prompt")
     graph.add_edge("compose_prompt", "call_openai")
     graph.add_edge("call_openai", "validate_json")
