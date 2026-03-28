@@ -4,40 +4,63 @@ Your task is to analyze a simplified HTML structure and identify TOP-LEVEL eleme
 
 ---
 
+## CORE PRINCIPLE (VERY IMPORTANT)
+
+All classifications MUST be based on the PRIMARY INTENT of the section.
+
+- A section may contain mixed signals (e.g., feature + value + CTA).
+- You MUST determine the dominant purpose of the section.
+- Classify the section based on what it is mainly trying to achieve.
+
+Do NOT classify based on:
+- isolated text phrases
+- small UI elements
+- partial signals
+
+Always think:
+→ "What is the main goal of this section?"
+
+---
+
+## SECTION-LEVEL CLASSIFICATION (CRITICAL)
+
+You MUST classify based on the entire section, not individual elements.
+
+- Do NOT classify based on a single sentence, label, or bullet point.
+- Do NOT assign a category just because part of the section matches it.
+
+Instead:
+- Analyze the structure and content of the whole section.
+- Identify what the section is primarily designed to communicate.
+
+A section should be classified ONLY if its overall structure and majority content clearly support that category.
+
+If multiple signals exist:
+→ Ignore minor or secondary signals
+→ Focus only on the dominant purpose of the section
+
+---
+
 ## IMPORTANT RULES (STRICT)
 
 1. DO NOT hallucinate.
    - If a funnel section is not clearly present, DO NOT create one.
 
-2. ONLY classify elements when you are confident.
-   - Ambiguous elements must be ignored.
+2. ONLY classify when confident.
+   - Ambiguous sections must be ignored.
 
 3. ONLY select TOP-LEVEL meaningful elements.
    - Avoid small UI components like buttons, spans, icons.
-   - Prefer section-level, container-level elements.
+   - Focus on section-level containers.
 
-4. Each selected element MUST be mapped using its provided `id`.
+4. Each selected element MUST use its provided `id`.
 
 5. One element → ONE funnel type only.
 
 6. If no valid funnel elements exist, return an empty list.
 
----
-
-## MODAL / POPUP DETECTION (VERY IMPORTANT)
-
-If an element is likely a modal, popup, or overlay:
-- Examples:
-  - login modal
-  - signup popup
-  - checkout modal
-  - dialog overlay
-  - floating input UI
-- Then classify it as:
-
-→ "POPUP"
-
-Even if it contains form, CTA, etc.
+7. All sections are OPTIONAL.
+   - Do NOT assume all funnel types must exist.
 
 ---
 
@@ -46,70 +69,90 @@ Even if it contains form, CTA, etc.
 Only use the following categories:
 
 1. HERO
-2. VALUE_PROP
-3. FEATURE
-4. SOCIAL_PROOF
-5. TRUST
-6. PRICING
-7. CTA
-8. INPUT_FORM
-9. CHECKOUT
-10. INTERACTIVE
-11. FAQ
-12. POPUP
+2. PROBLEM
+3. TARGET
+4. USE_CASE
+5. FEATURE
+6. VALUE_PROP
+7. SOCIAL_PROOF
+8. PRICING
+9. FAQ
+10. CTA_SECTION
+11. GENERIC
 
 ---
 
-## DEFINITIONS (STRICT INTERPRETATION)
+## DEFINITIONS (PRIMARY INTENT BASED)
 
 - HERO:
-  The top-most section, visible without scrolling.
-  Includes a main headline, supporting text, and a primary CTA, often with a strong visual.
+  The first impression section that immediately communicates what the product is and why it matters.
+  It typically includes a strong headline, supporting subtext, and a primary call-to-action.
+  Its main goal is to quickly convey the core idea of the product.
 
-- VALUE_PROP:
-  Explains the core value or benefits of the product ("why it matters").
-  Uses persuasive language rather than listing features.
+- PROBLEM:
+  A section focused on identifying and articulating key user pain points or challenges.
+  It emphasizes relatable frustrations or inefficiencies to build empathy and highlight the need for a solution.
+
+- TARGET:
+  A section that clearly defines the intended audience of the product.
+  It specifies user groups (e.g., roles, industries, situations) so that relevant users can recognize themselves.
+
+- USE_CASE:
+  A section that demonstrates how the product is used in real-world scenarios.
+  It focuses on practical situations, workflows, or applications that help users understand how the product fits into their context.
+  It is typically structured around scenarios or examples, not feature listings.
 
 - FEATURE:
-  Describes specific product features or capabilities ("what it does").
-  Often shown as a list, grid, or repeated blocks.
+  A section that explains what the product does.
+  It focuses on specific functionalities, capabilities, or how the product works.
+  If the section describes actions the user can take or features the product provides, it should be classified as FEATURE.
+
+- VALUE_PROP:
+  A section that communicates why the product is valuable or worth choosing.
+  It focuses on benefits, outcomes, or key strengths, without going into specific functionality.
+  If the section emphasizes the value or advantages of the product rather than explaining how it works, it should be classified as VALUE_PROP.
 
 - SOCIAL_PROOF:
-  Shows that other users trust or use the product.
-  Includes testimonials, reviews, ratings, or user counts.
-
-- TRUST:
-  Builds credibility through authority signals.
-  Includes certifications, security badges, compliance, or guarantees (not user opinions).
+  A section that builds trust by showing that others are already using the product.
+  Includes testimonials, customer logos, user counts, or reviews.
 
 - PRICING:
-  Displays pricing plans, tiers, or cost-related details.
-  Often includes numbers, currency, and comparison between plans.
-
-- CTA_SECTION:
-  A dedicated section designed to drive user action.
-  Typically includes strong CTA text with minimal additional content.
-
-- INPUT_FORM:
-  A section that collects user input such as email, signup info, or survey responses.
-  Identified by input fields, dropdowns, or text areas.
-
-- CHECKOUT:
-  A transactional section where users complete a purchase.
-  Includes billing details, payment inputs, and order summary.
-
-- INTERACTIVE:
-  Sections with UI elements that respond to user interaction (e.g., tabs, sliders, calculators).
-  Often allows users to preview, simulate, or experience the product before conversion.
+  A section that presents pricing plans or cost structures.
+  It helps users understand available options and differences between tiers.
 
 - FAQ:
-  A structured list of questions and answers.
-  Often uses expandable or collapsible items.
+  A section that answers common user questions or concerns.
+  It reduces uncertainty by addressing typical objections or usage-related queries.
 
-- POPUP:
-  Overlay UI elements (modals, dialogs, exit-intent popups) that appear above the page.
-  Interrupt the normal flow to capture attention or drive immediate action.
+- CTA_SECTION:
+  A section primarily designed to drive user action.
+  It includes a clear call-to-action with minimal additional content.
 
+- GENERIC:
+  A section that does not clearly fit into any of the defined categories.
+  It typically provides general or supporting content that is not focused on product functionality, value, or conversion.
+  This includes content such as blog posts, articles, updates, or simple descriptive text.
+
+
+---
+
+## DISAMBIGUATION GUIDELINES
+
+- If the section focuses on capabilities or what the product does → FEATURE
+- If it focuses on benefits, outcomes, or why the product is valuable (without explaining functionality) → VALUE_PROP
+
+- If it describes:
+  - “who it is for” → TARGET
+  - “how it is used in context or scenarios” → USE_CASE
+
+- If the section is structured as a list or grid of items:
+  - describing features or actions → FEATURE
+  - describing strengths or high-level benefits → VALUE_PROP
+
+- If the section includes both functionality and benefits:
+  - and functionality is clearly described → FEATURE
+
+- If the section does not clearly match any category and lacks a strong conversion intent → GENERIC
 ---
 
 ## OUTPUT FORMAT (STRICT JSON)
@@ -124,11 +167,15 @@ Return ONLY valid JSON.
     "confidence": 0.92
   }
 ]
-```
-- id: from input
-- funnel: one of the predefined categories
-- confidence: 0.0 ~ 1.0
+````
+
+* id: from input
+* funnel: one of the predefined categories
+* confidence: 0.0 ~ 1.0
+
+---
 
 ## INPUT HTML
 
 {{INPUT_HTML}}
+
