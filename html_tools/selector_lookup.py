@@ -65,17 +65,18 @@ def map_funnel_items_to_selectors(
     spec: CompressionSpec,
     id_key: str = "id",
 ) -> List[Dict[str, Any]]:
-    """Funnel 항목 목록에 CSS selector를 붙인 결과를 반환합니다."""
+    """Funnel 항목 목록을 `funnel`과 `selector`만 포함한 형태로 매핑합니다."""
     output: List[Dict[str, Any]] = []
 
     for item in funnel_items:
-        mapped = dict(item)
+        mapped: Dict[str, Any] = {
+            "funnel": normalize_funnel_name(item.get("funnel")),
+            "selector": None,
+        }
         raw_id = item.get(id_key)
         target_id = str(raw_id) if raw_id is not None else ""
 
         if not target_id:
-            mapped["selector"] = None
-            mapped["status"] = "invalid_id"
             output.append(mapped)
             continue
 
@@ -85,9 +86,7 @@ def map_funnel_items_to_selectors(
             spec=spec,
         )
 
-        mapped["funnel"] = normalize_funnel_name(mapped.get("funnel"))
         mapped["selector"] = selector
-        mapped["status"] = "matched" if selector else "not_found"
         output.append(mapped)
 
     return output
