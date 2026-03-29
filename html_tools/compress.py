@@ -1,6 +1,18 @@
-from .hash_id import generate_hash
-from .spec import CompressionSpec
-from .transform import attrs_to_string, filter_attrs, iter_kept_nodes, parse_html_root
+import argparse
+import sys
+from pathlib import Path
+
+try:
+    from .hash_id import generate_hash
+    from .spec import CompressionSpec
+    from .transform import attrs_to_string, filter_attrs, iter_kept_nodes, parse_html_root
+except ImportError:  # pragma: no cover - direct script execution fallback
+    project_root = Path(__file__).resolve().parents[1]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    from html_tools.hash_id import generate_hash
+    from html_tools.spec import CompressionSpec
+    from html_tools.transform import attrs_to_string, filter_attrs, iter_kept_nodes, parse_html_root
 
 
 def dom_to_compressed_lines(html: str, spec: CompressionSpec) -> str:
@@ -41,3 +53,34 @@ def convert_html_file_to_txt(
         f.write(result)
 
     print(f"✅ 변환 완료: {output_txt_path}")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Convert HTML file to compressed HTML text format.")
+    parser.add_argument(
+        "--input-html",
+        default="input.html",
+        help="Path to source HTML file (default: input.html)",
+    )
+    parser.add_argument(
+        "--output-txt",
+        help="Path to output TXT file (default: <input_basename>_compressed.txt)",
+    )
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    input_path = Path(args.input_html)
+
+    if args.output_txt:
+        output_path = Path(args.output_txt)
+    else:
+        output_path = input_path.with_name(f"{input_path.stem}_compressed.txt")
+
+    spec = CompressionSpec()
+    convert_html_file_to_txt(str(input_path), str(output_path), spec)
+
+
+if __name__ == "__main__":
+    main()
