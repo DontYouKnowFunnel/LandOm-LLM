@@ -1,5 +1,6 @@
 .DS_Store
 .env
+git_convention
 __pycache__/
 *.pyc
 

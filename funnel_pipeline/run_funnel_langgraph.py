@@ -27,6 +27,9 @@ class FunnelState(TypedDict, total=False):
     prompt_template: str
     compressed_html: str
     prompt: str
+    provider: str
+    model: str
+    base_url: str
     llm_raw_output: str
     funnel_json_text: str
 
@@ -52,19 +55,46 @@ def compose_prompt_node(state: FunnelState) -> FunnelState:
     return {"prompt": prompt}
 
 
-def call_openai_node(state: FunnelState) -> FunnelState:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set. Add it to your .env file.")
+def resolve_client_config(state: FunnelState) -> tuple[str, str, str | None]:
+    provider = state["provider"]
 
-    client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model="gpt-5.4-mini",
-        reasoning_effort="medium",
-        messages=[
+    if provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY is not set. Add it to your .env file.")
+        default_model = "gpt-5.4-mini"
+        default_base_url = os.getenv("OPENAI_BASE_URL")
+    elif provider == "groq":
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY is not set. Add it to your .env file.")
+        default_model = "meta-llama/llama-4-scout-17b-16e-instruct"
+        default_base_url = "https://api.groq.com/openai/v1"
+    else:
+        raise RuntimeError(f"Unsupported provider: {provider}")
+
+    model = state.get("model") or default_model
+    base_url = state.get("base_url") or default_base_url
+    return api_key, model, base_url
+
+
+def call_llm_node(state: FunnelState) -> FunnelState:
+    api_key, model, base_url = resolve_client_config(state)
+    client_kwargs = {"api_key": api_key}
+    if base_url:
+        client_kwargs["base_url"] = base_url
+
+    client = OpenAI(**client_kwargs)
+    request_kwargs = {
+        "model": model,
+        "messages": [
             {"role": "user", "content": state["prompt"]},
         ],
-    )
+    }
+    if state["provider"] == "openai":
+        request_kwargs["reasoning_effort"] = "medium"
+
+    response = client.chat.completions.create(**request_kwargs)
     content = response.choices[0].message.content or ""
     return {"llm_raw_output": content.strip()}
 
@@ -86,25 +116,41 @@ def build_graph():
     graph.add_node("extract_body", extract_body_node)
     graph.add_node("compress_html", compress_html_node)
     graph.add_node("compose_prompt", compose_prompt_node)
-    graph.add_node("call_openai", call_openai_node)
+    graph.add_node("call_llm", call_llm_node)
     graph.add_node("validate_json", validate_and_format_json_node)
 
     graph.add_edge(START, "load_prompt")
     graph.add_edge("load_prompt", "extract_body")
     graph.add_edge("extract_body", "compress_html")
     graph.add_edge("compress_html", "compose_prompt")
-    graph.add_edge("compose_prompt", "call_openai")
-    graph.add_edge("call_openai", "validate_json")
+    graph.add_edge("compose_prompt", "call_llm")
+    graph.add_edge("call_llm", "validate_json")
     graph.add_edge("validate_json", END)
     return graph.compile()
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="LangGraph workflow: HTML -> compressed HTML -> funnel JSON text via OpenAI"
+        description="LangGraph workflow: HTML -> compressed HTML -> funnel JSON text via OpenAI-compatible LLMs"
     )
     parser.add_argument("--input-html", default="input.html", help="Path to the source HTML file")
     parser.add_argument("--output", default="funnel.json", help="Path to save JSON text")
+    parser.add_argument(
+        "--provider",
+        choices=("openai", "groq"),
+        default=os.getenv("LLM_PROVIDER", "openai"),
+        help="LLM provider to call",
+    )
+    parser.add_argument(
+        "--model",
+        default=os.getenv("LLM_MODEL"),
+        help="Model name override for the selected provider",
+    )
+    parser.add_argument(
+        "--base-url",
+        default=os.getenv("LLM_BASE_URL"),
+        help="Optional OpenAI-compatible API base URL override",
+    )
     return parser.parse_args()
 
 
@@ -118,6 +164,9 @@ def main():
     result = workflow.invoke(
         {
             "input_html": input_html,
+            "provider": args.provider,
+            "model": args.model,
+            "base_url": args.base_url,
         }
     )
 

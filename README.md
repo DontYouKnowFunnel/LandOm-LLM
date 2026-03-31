@@ -30,6 +30,20 @@ python3 -m pip install -r requirements.txt
 OPENAI_API_KEY=your_openai_api_key
 ```
 
+Groq를 사용할 때는 아래 키를 설정하세요.
+
+```env
+GROQ_API_KEY=your_groq_api_key
+```
+
+선택적으로 공통 LLM 설정도 `.env`에 둘 수 있습니다.
+
+```env
+LLM_PROVIDER=groq
+LLM_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+LLM_BASE_URL=https://api.groq.com/openai/v1
+```
+
 선택(LangSmith 추적):
 
 ```env
@@ -45,6 +59,16 @@ LANGSMITH_PROJECT=projectname
 
 ```bash
 python3 funnel_pipeline/run_funnel_langgraph.py \
+  --input-html examples/input/input.html \
+  --output examples/output/funnel.json
+```
+
+Groq로 실행하려면:
+
+```bash
+python3 funnel_pipeline/run_funnel_langgraph.py \
+  --provider groq \
+  --model meta-llama/llama-4-scout-17b-16e-instruct \
   --input-html examples/input/input.html \
   --output examples/output/funnel.json
 ```
