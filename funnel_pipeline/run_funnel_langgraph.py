@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import TypedDict
@@ -99,8 +100,36 @@ def call_llm_node(state: FunnelState) -> FunnelState:
     return {"llm_raw_output": content.strip()}
 
 
+def extract_json_text(raw: str) -> str:
+    stripped = raw.strip()
+    if not stripped:
+        return stripped
+
+    fence_matches = re.findall(r"```(?:json)?\s*(.*?)```", stripped, flags=re.DOTALL | re.IGNORECASE)
+    candidates = [candidate.strip() for candidate in fence_matches if candidate.strip()]
+
+    first_array = stripped.find("[")
+    last_array = stripped.rfind("]")
+    if first_array != -1 and last_array != -1 and first_array < last_array:
+        candidates.append(stripped[first_array : last_array + 1].strip())
+
+    first_object = stripped.find("{")
+    last_object = stripped.rfind("}")
+    if first_object != -1 and last_object != -1 and first_object < last_object:
+        candidates.append(stripped[first_object : last_object + 1].strip())
+
+    for candidate in candidates:
+        try:
+            json.loads(candidate)
+            return candidate
+        except json.JSONDecodeError:
+            continue
+
+    return stripped
+
+
 def validate_and_format_json_node(state: FunnelState) -> FunnelState:
-    raw = state["llm_raw_output"].strip()
+    raw = extract_json_text(state["llm_raw_output"])
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as exc:

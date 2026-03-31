@@ -158,6 +158,8 @@ Only use the following categories:
 ## OUTPUT FORMAT (STRICT JSON)
 
 Return ONLY valid JSON.
+Do not include explanations, bullet points, or markdown code fences.
+Copy each `id` EXACTLY as it appears in the input. Never rewrite, rename, or simplify ids.
 
 ```json
 [
@@ -178,4 +180,3 @@ Return ONLY valid JSON.
 ## INPUT HTML
 
 {{INPUT_HTML}}
-
