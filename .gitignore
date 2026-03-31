@@ -1,6 +1,11 @@
 .DS_Store
 .env
 git_convention
+.venv/
+examples/input/lascol.html
+examples/input/linglevel.html
+examples/output/lascol_*
+examples/output/linglevel_*
 __pycache__/
 *.pyc
 
