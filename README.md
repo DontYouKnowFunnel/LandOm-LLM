@@ -13,8 +13,8 @@ HTML을 입력으로 받아 퍼널 분석 결과(JSON)와 시각화 오버레이
   - 퍼널 분석 프롬프트
 - `examples/input/input.html`
   - 예시 입력 HTML
-- `examples/output/*`
-  - 예시 출력 파일
+- `run/*`
+  - 실행 결과 출력 파일
 
 ## 설치
 
@@ -60,7 +60,7 @@ LANGSMITH_PROJECT=projectname
 ```bash
 python3 funnel_pipeline/run_funnel_langgraph.py \
   --input-html examples/input/input.html \
-  --output examples/output/funnel.json
+  --output run/funnel.json
 ```
 
 Groq로 실행하려면:
@@ -70,32 +70,28 @@ python3 funnel_pipeline/run_funnel_langgraph.py \
   --provider groq \
   --model meta-llama/llama-4-scout-17b-16e-instruct \
   --input-html examples/input/input.html \
-  --output examples/output/funnel.json
+  --output run/funnel.json
 ```
 
 ### 2) selector 매핑 + 오버레이 JS 생성
 
-현재 `run_funnel_selector_mapping.py`는 입력을 `input.html`, `funnel.json`으로 하드코딩해서 읽습니다.
-먼저 파일을 루트로 복사한 뒤 실행하세요.
-
 ```bash
-cp examples/input/input.html input.html
-cp examples/output/funnel.json funnel.json
-
 python3 funnel_pipeline/run_funnel_selector_mapping.py \
-  --output-json examples/output/funnel_selector_output.json \
-  --output-js examples/output/funnel_overlay.js
+  --input-html examples/input/input.html \
+  --funnel-json run/funnel.json \
+  --output-json run/funnel_selector_output.json \
+  --output-js run/funnel_overlay.js
 ```
 
 ## 브라우저 오버레이 확인
 
 1. 대상 페이지를 브라우저에서 연다.
-2. `examples/output/funnel_overlay.js` 내용을 콘솔에 붙여넣어 실행한다.
+2. `run/funnel_overlay.js` 내용을 콘솔에 붙여넣어 실행한다.
 3. 퍼널 박스가 섹션 위에 렌더링된다.
 
 ## 출력 파일
 
-- `examples/output/funnel.json`: LLM 퍼널 분류 결과
-- `examples/output/funnel_selector_output.json`: selector 매핑 결과
-- `examples/output/funnel_overlay.js`: 브라우저 주입용 시각화 스크립트
+- `run/funnel.json`: LLM 퍼널 분류 결과
+- `run/funnel_selector_output.json`: selector 매핑 결과
+- `run/funnel_overlay.js`: 브라우저 주입용 시각화 스크립트
 - `examples/output/output.txt`: compressed HTML 예시
