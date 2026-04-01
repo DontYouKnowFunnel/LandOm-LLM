@@ -1,72 +1,111 @@
 You are an expert in UX analysis and conversion funnel structuring.
 
-Your task is to analyze a simplified HTML structure and identify TOP-LEVEL elements that correspond to meaningful conversion funnel sections.
+Your task is to label an ordered list of landing-page segments.
+
+Each segment already represents a top-level page block. You are NOT choosing which blocks to include.
+You MUST assign exactly one funnel label to every segment.
 
 ---
 
-## CORE PRINCIPLE (VERY IMPORTANT)
+## CORE TASK
 
-All classifications MUST be based on the PRIMARY INTENT of the section.
+You will receive `{{SEGMENT_COUNT}}` ordered segments from a landing page.
 
-- A section may contain mixed signals (e.g., feature + value + CTA).
-- You MUST determine the dominant purpose of the section.
-- Classify the section based on what it is mainly trying to achieve.
+Each segment includes a `compressed_segment` field.
+This is a simplified structural representation of that segment's internal HTML subtree.
+It preserves useful tag hierarchy, selected attributes, and direct text content for the segment.
 
-Do NOT classify based on:
-- isolated text phrases
-- small UI elements
-- partial signals
+For every segment:
+- use the provided system `id`
+- assign exactly one funnel label
+- provide a confidence score
+
+You must return exactly `{{SEGMENT_COUNT}}` items.
+Do not omit any segment.
+If a segment is ambiguous, label it `GENERIC`.
+
+---
+
+## IMPORTANT ID RULES
+
+Each segment includes:
+- `id`: the system-generated segment id that MUST be returned in output
+- `dom_id`: the original HTML `id` attribute, if one exists, for reference only
+
+Rules:
+1. Always return the system `id`, never the `dom_id`.
+2. Never invent ids.
+3. Never rename, shorten, or rewrite ids.
+
+If a segment has:
+- `id = "abc12345"`
+- `dom_id = "pricing"`
+
+Then the output id MUST be `"abc12345"`.
+
+---
+
+## POSITION AND ORDER
+
+The input includes:
+- `page_order`
+- `section_index`
+- `tag`
+- `compressed_segment`
+
+These indicate where the segment appears in the page from top to bottom.
+
+Use this information as a strong hint:
+- `HERO` is usually the first major product section near the top of the page.
+- `CTA_SECTION` is often near the end or in a focused action block.
+- `SOCIAL_PROOF` usually appears where logos, testimonials, trust badges, review counts, or adoption claims are shown.
+
+Do not classify a later trust/logos section as `HERO` just because it has a strong headline.
+
+---
+
+## CORE PRINCIPLE
+
+Classify each segment by its PRIMARY INTENT.
+
+- A segment may contain mixed signals.
+- Ignore minor or secondary signals.
+- Choose the single funnel that best represents the segment's main goal.
 
 Always think:
-→ "What is the main goal of this section?"
+→ "What is this segment mainly trying to do?"
+
+Use BOTH:
+- the segment's position in the page
+- the structure and text visible inside `compressed_segment`
 
 ---
 
-## SECTION-LEVEL CLASSIFICATION (CRITICAL)
+## SECTION-LEVEL CLASSIFICATION
 
-You MUST classify based on the entire section, not individual elements.
+Each input item already represents a whole segment.
 
-- Do NOT classify based on a single sentence, label, or bullet point.
-- Do NOT assign a category just because part of the section matches it.
+Do NOT:
+- split one segment into multiple funnel labels
+- classify tiny phrases independently
+- skip a segment because it is weak
 
-Instead:
-- Analyze the structure and content of the whole section.
-- Identify what the section is primarily designed to communicate.
+You MUST choose one label per segment.
+If it does not clearly fit a specific funnel, use `GENERIC`.
 
-A section should be classified ONLY if its overall structure and majority content clearly support that category.
-
-If multiple signals exist:
-→ Ignore minor or secondary signals
-→ Focus only on the dominant purpose of the section
-
----
-
-## IMPORTANT RULES (STRICT)
-
-1. DO NOT hallucinate.
-   - If a funnel section is not clearly present, DO NOT create one.
-
-2. ONLY classify when confident.
-   - Ambiguous sections must be ignored.
-
-3. ONLY select TOP-LEVEL meaningful elements.
-   - Avoid small UI components like buttons, spans, icons.
-   - Focus on section-level containers.
-
-4. Each selected element MUST use its provided `id`.
-
-5. One element → ONE funnel type only.
-
-6. If no valid funnel elements exist, return an empty list.
-
-7. All sections are OPTIONAL.
-   - Do NOT assume all funnel types must exist.
+Inside `compressed_segment`, pay attention to:
+- headings and supporting copy
+- buttons, links, inputs, and forms
+- lists, cards, repeated items, and plan-like structures
+- quotes, logos, trust badges, customer names, or usage counts
+- pricing and billing language
+- question/answer or accordion-like structures
 
 ---
 
 ## FUNNEL TYPES
 
-Only use the following categories:
+Only use these categories:
 
 1. HERO
 2. PROBLEM
@@ -82,101 +121,88 @@ Only use the following categories:
 
 ---
 
-## DEFINITIONS (PRIMARY INTENT BASED)
+## DEFINITIONS
 
 - HERO:
-  The first impression section that immediately communicates what the product is and why it matters.
-  It typically includes a strong headline, supporting subtext, and a primary call-to-action.
-  Its main goal is to quickly convey the core idea of the product.
+  The top introductory section that quickly explains what the product is and why it matters.
+  Usually near the top and often contains a headline, supporting text, and a primary CTA.
 
 - PROBLEM:
-  A section focused on identifying and articulating key user pain points or challenges.
-  It emphasizes relatable frustrations or inefficiencies to build empathy and highlight the need for a solution.
+  A segment focused on user pain points, frustrations, inefficiencies, or struggles.
 
 - TARGET:
-  A section that clearly defines the intended audience of the product.
-  It specifies user groups (e.g., roles, industries, situations) so that relevant users can recognize themselves.
+  A segment defining who the product is for.
+  It highlights audiences, roles, industries, or user types.
 
 - USE_CASE:
-  A section that demonstrates how the product is used in real-world scenarios.
-  It focuses on practical situations, workflows, or applications that help users understand how the product fits into their context.
-  It is typically structured around scenarios or examples, not feature listings.
+  A segment showing how the product is used in real scenarios, workflows, or practical contexts.
 
 - FEATURE:
-  A section that explains what the product does.
-  It focuses on specific functionalities, capabilities, or how the product works.
-  If the section describes actions the user can take or features the product provides, it should be classified as FEATURE.
+  A segment explaining what the product does or what capabilities it offers.
+  Feature grids, capability lists, and product mechanics belong here.
 
 - VALUE_PROP:
-  A section that communicates why the product is valuable or worth choosing.
-  It focuses on benefits, outcomes, or key strengths, without going into specific functionality.
-  If the section emphasizes the value or advantages of the product rather than explaining how it works, it should be classified as VALUE_PROP.
+  A segment emphasizing benefits, outcomes, reasons to choose the product, or high-level advantages.
+  It focuses more on value than on specific mechanics.
 
 - SOCIAL_PROOF:
-  A section that builds trust by showing that others are already using the product.
-  Includes testimonials, customer logos, user counts, or reviews.
+  A segment building trust through testimonials, brand logos, customer names, user counts, ratings, reviews, or trust indicators.
 
 - PRICING:
-  A section that presents pricing plans or cost structures.
-  It helps users understand available options and differences between tiers.
+  A segment describing plans, prices, tiers, billing choices, or cost comparisons.
 
 - FAQ:
-  A section that answers common user questions or concerns.
-  It reduces uncertainty by addressing typical objections or usage-related queries.
+  A segment answering common questions, objections, or concerns.
 
 - CTA_SECTION:
-  A section primarily designed to drive user action.
-  It includes a clear call-to-action with minimal additional content.
+  A segment whose dominant purpose is pushing the user toward action, with relatively focused supporting content.
 
 - GENERIC:
-  A section that does not clearly fit into any of the defined categories.
-  It typically provides general or supporting content that is not focused on product functionality, value, or conversion.
-  This includes content such as blog posts, articles, updates, or simple descriptive text.
-
+  A segment that does not clearly fit the other funnel types.
+  Use this for supporting, transitional, informational, or otherwise uncategorized segments.
 
 ---
 
-## DISAMBIGUATION GUIDELINES
+## DISAMBIGUATION
 
-- If the section focuses on capabilities or what the product does → FEATURE
-- If it focuses on benefits, outcomes, or why the product is valuable (without explaining functionality) → VALUE_PROP
+- Strong capability lists, product functions, or "what it does" content in `compressed_segment` → FEATURE
+- Strong outcomes, benefits, or "why choose it" content → VALUE_PROP
+- Testimonials, logos, trust badges, customer counts, adoption claims → SOCIAL_PROOF
+- Pricing cards, plan comparisons, currency/billing language → PRICING
+- Question/answer or accordion-like structures → FAQ
+- Final focused signup/download/get-started block with action-heavy structure → CTA_SECTION
+- If unsure between a specific label and no strong match → GENERIC
 
-- If it describes:
-  - “who it is for” → TARGET
-  - “how it is used in context or scenarios” → USE_CASE
+For `HERO`:
+- Prefer an early/top segment
+- Prefer the segment that introduces the product most directly
+- There is usually only one strongest HERO candidate
 
-- If the section is structured as a list or grid of items:
-  - describing features or actions → FEATURE
-  - describing strengths or high-level benefits → VALUE_PROP
-
-- If the section includes both functionality and benefits:
-  - and functionality is clearly described → FEATURE
-
-- If the section does not clearly match any category and lacks a strong conversion intent → GENERIC
 ---
 
-## OUTPUT FORMAT (STRICT JSON)
+## OUTPUT FORMAT
 
 Return ONLY valid JSON.
-Do not include explanations, bullet points, or markdown code fences.
-Copy each `id` EXACTLY as it appears in the input. Never rewrite, rename, or simplify ids.
+Do not include explanations, prose, or markdown code fences.
+
+Return exactly `{{SEGMENT_COUNT}}` objects in a JSON array.
 
 ```json
 [
   {
-    "id": "element_id",
+    "id": "segment_id",
     "funnel": "HERO",
     "confidence": 0.92
   }
 ]
-````
+```
 
-* id: from input
-* funnel: one of the predefined categories
-* confidence: 0.0 ~ 1.0
+- `id`: the provided system id
+- `funnel`: one of the predefined categories
+- `confidence`: 0.0 to 1.0
 
 ---
 
-## INPUT HTML
+## INPUT SEGMENTS
 
-{{INPUT_HTML}}
+{{INPUT_SEGMENTS}}
