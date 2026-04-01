@@ -2,13 +2,18 @@
 .env
 git_convention
 .venv/
-examples/input/lascol.html
-examples/input/linglevel.html
-examples/output/lascol_*
-examples/output/linglevel_*
 __pycache__/
 *.pyc
 
+examples/input/*
+!examples/input/input.html
+
+examples/output/*
+!examples/output/funnel_overlay.js
+!examples/output/funnel_selector_output.json
+!examples/output/funnel.json
+!examples/output/output.txt
+
 # runtime artifacts
-runs/*
-!runs/.gitkeep
+run/*
+!run/.gitkeep
