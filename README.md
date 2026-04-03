@@ -1,20 +1,34 @@
 # LandOm Funnel Pipeline
 
-HTML을 입력으로 받아 퍼널 분석 결과(JSON)와 시각화 오버레이 JS를 생성하는 프로젝트입니다.
+랜딩페이지 HTML을 입력으로 받아, 페이지를 세그멘팅하고 각 세그먼트에 퍼널 단계를 부여하는 프로젝트입니다.
 
-## 구성
+## 현재 메인 파이프라인
 
-- `funnel_pipeline/run_funnel_langgraph.py`
-  - HTML -> compressed HTML -> LLM 분석 -> `funnel.json` 생성
-- `funnel_pipeline/run_funnel_selector_mapping.py`
-  - `funnel.json`의 id를 CSS selector로 매핑
-  - `funnel_selector_output.json`, `funnel_overlay.js` 생성
+현재 고정된 파이프라인은 아래 순서로 동작합니다.
+
+1. HTML 본문 추출 및 정제
+2. page-level 세그멘테이션
+3. 세그먼트 압축 표현 생성
+4. 공통 프롬프트 기반 LLM 분류
+5. 결과 정규화 및 selector 기반 출력 생성
+
+평가 기준은 DOM unit 기반의 두 지표를 사용합니다.
+
+- `Boundary F1`: 세그먼트 경계 일치도
+- `Label Accuracy`: DOM unit 단위 퍼널 단계 일치도
+
+## 주요 구성 요소
+
+- `html_tools/segments.py`
+  - 기본 세그멘테이션과 세그먼트 압축 유틸리티
+- `html_tools/segments_targeted_refine.py`
+  - 메인 세그멘테이션 경로
 - `prompts/html_to_funnel_prompt.txt`
-  - 퍼널 분석 프롬프트
-- `examples/input/input.html`
-  - 예시 입력 HTML
-- `run/*`
-  - 실행 결과 출력 파일
+  - llama와 OpenAI가 공통으로 사용하는 메인 프롬프트
+- `scripts/run_bench_batch.py`
+  - provider와 model을 받아 benchmark 추론을 수행하는 메인 실행 스크립트
+- `funnel_pipeline/run_funnel_langgraph.py`
+  - 공통 LLM 호출, 출력 정규화 유틸리티
 
 ## 설치
 
@@ -24,74 +38,43 @@ python3 -m pip install -r requirements.txt
 
 ## 환경 변수
 
-루트에 `.env` 파일을 만들고 최소 아래 값을 설정하세요.
+루트에 `.env` 파일을 만들고 필요한 API 키를 설정합니다.
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
-```
-
-Groq를 사용할 때는 아래 키를 설정하세요.
-
-```env
 GROQ_API_KEY=your_groq_api_key
 ```
 
-선택적으로 공통 LLM 설정도 `.env`에 둘 수 있습니다.
+선택적으로 공통 LLM 설정을 둘 수 있습니다.
 
 ```env
 LLM_PROVIDER=groq
-LLM_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+LLM_MODEL=llama-3.3-70b-versatile
 LLM_BASE_URL=https://api.groq.com/openai/v1
 ```
 
-선택(LangSmith 추적):
+## 실행 예시
 
-```env
-LANGSMITH_TRACING=true
-LANGSMITH_ENDPOINT=https://api.smith.langchain.com
-LANGSMITH_API_KEY=your_langsmith_api_key
-LANGSMITH_PROJECT=projectname
-```
-
-## 사용 방법
-
-### 1) 퍼널 JSON 생성 (LangGraph)
+### llama benchmark 실행
 
 ```bash
-python3 funnel_pipeline/run_funnel_langgraph.py \
-  --input-html examples/input/input.html \
-  --output run/funnel.json
-```
-
-Groq로 실행하려면:
-
-```bash
-python3 funnel_pipeline/run_funnel_langgraph.py \
+python3 scripts/run_bench_batch.py \
   --provider groq \
-  --model meta-llama/llama-4-scout-17b-16e-instruct \
-  --input-html examples/input/input.html \
-  --output run/funnel.json
+  --model llama-3.3-70b-versatile \
+  --input-dir LandOm-LLM-Bench/input \
+  --gold-dir LandOm-LLM-Bench/output \
+  --output-root run/bench_eval
 ```
 
-### 2) selector 매핑 + 오버레이 JS 생성
+### OpenAI benchmark 실행
 
 ```bash
-python3 funnel_pipeline/run_funnel_selector_mapping.py \
-  --input-html examples/input/input.html \
-  --funnel-json run/funnel.json \
-  --output-json run/funnel_selector_output.json \
-  --output-js run/funnel_overlay.js
+python3 scripts/run_bench_batch.py \
+  --provider openai \
+  --model gpt-5.4 \
+  --input-dir LandOm-LLM-Bench/input \
+  --gold-dir LandOm-LLM-Bench/output \
+  --output-root run/bench_eval
 ```
 
-## 브라우저 오버레이 확인
-
-1. 대상 페이지를 브라우저에서 연다.
-2. `run/funnel_overlay.js` 내용을 콘솔에 붙여넣어 실행한다.
-3. 퍼널 박스가 섹션 위에 렌더링된다.
-
-## 출력 파일
-
-- `run/funnel.json`: LLM 퍼널 분류 결과
-- `run/funnel_selector_output.json`: selector 매핑 결과
-- `run/funnel_overlay.js`: 브라우저 주입용 시각화 스크립트
-- `examples/output/output.txt`: compressed HTML 예시
+평가는 benchmark workspace 내부의 공식 grader가 수행합니다.
