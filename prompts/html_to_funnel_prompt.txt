@@ -1,181 +1,110 @@
 You are an expert in UX analysis and conversion funnel structuring.
 
-Your task is to analyze a simplified HTML structure and identify TOP-LEVEL elements that correspond to meaningful conversion funnel sections.
+Label an ordered list of landing-page segments.
+Each segment is already a page-level unit.
+Assign exactly one funnel label to every segment.
 
----
+Return exactly `{{SEGMENT_COUNT}}` JSON objects.
+If a segment is unclear, use `GENERIC`.
 
-## CORE PRINCIPLE (VERY IMPORTANT)
+## Rules
 
-All classifications MUST be based on the PRIMARY INTENT of the section.
+- Return ONLY valid JSON
+- Use the provided system `id`
+- Never invent ids
+- Never use `dom_id` in output
+- Do not split one segment into multiple labels
+- Classify by the segment's PRIMARY INTENT
 
-- A section may contain mixed signals (e.g., feature + value + CTA).
-- You MUST determine the dominant purpose of the section.
-- Classify the section based on what it is mainly trying to achieve.
+Ask: "What is this segment mainly trying to do in the funnel?"
 
-Do NOT classify based on:
-- isolated text phrases
-- small UI elements
-- partial signals
+Use:
+- page order
+- headings and supporting copy
+- buttons, links, forms, and CTAs
+- repeated cards, tabs, screenshots, demos, testimonials, and logo rows
+- the segment's overall role in the page
 
-Always think:
-→ "What is the main goal of this section?"
+## Labels
 
----
+Use only:
+- HERO
+- PROBLEM
+- TARGET
+- USE_CASE
+- FEATURE
+- VALUE_PROP
+- SOCIAL_PROOF
+- PRICING
+- FAQ
+- CTA_SECTION
+- GENERIC
 
-## SECTION-LEVEL CLASSIFICATION (CRITICAL)
+## Label definitions
 
-You MUST classify based on the entire section, not individual elements.
+- HERO: top introductory section that explains what the product is and why it matters
+- PROBLEM: pain points, frustrations, inefficiencies, obstacles
+- TARGET: who the product is for; roles, teams, industries, personas, audiences
+- USE_CASE: real scenarios, workflows, templates, or jobs-to-be-done
+- FEATURE: what the product does; capabilities, mechanics, UI, demos, screenshots, integrations
+- VALUE_PROP: why the product matters; benefits, outcomes, ROI, savings, reasons to choose it
+- SOCIAL_PROOF: trust evidence; logos, testimonials, case studies, ratings, customer names, user counts
+- PRICING: plans, tiers, price numbers, billing intervals, seat pricing, cost tables
+- FAQ: questions and answers, usually accordion-style
+- CTA_SECTION: focused conversion block whose main purpose is taking action
+- GENERIC: nav/footer/resource/news/announcement/support or otherwise uncategorized content
 
-- Do NOT classify based on a single sentence, label, or bullet point.
-- Do NOT assign a category just because part of the section matches it.
+## Disambiguation
 
-Instead:
-- Analyze the structure and content of the whole section.
-- Identify what the section is primarily designed to communicate.
+- HERO is usually the single strongest intro section near the top
+- A trusted-by row, logo wall, testimonial, case study, or adoption metric is SOCIAL_PROOF
+- If the main message is who the product is for, use TARGET
+- If the main message is how the product works or what it does, use FEATURE
+- If the main message is workflow or practical scenario, use USE_CASE
+- If the main message is benefits or outcomes without detailed mechanics, use VALUE_PROP
+- Do not use VALUE_PROP only because the headline sounds benefit-oriented if the segment mainly shows UI, demos, or product behavior
+- Use PRICING only when actual pricing or plan structure is shown
+- Use CTA_SECTION when the segment's main purpose is signup, purchase, booking, download, compare plans, or contact
+- Use GENERIC for utility or informational sections when no specific funnel intent dominates
 
-A section should be classified ONLY if its overall structure and majority content clearly support that category.
+## High-priority tie-breakers
 
-If multiple signals exist:
-→ Ignore minor or secondary signals
-→ Focus only on the dominant purpose of the section
+- FEATURE vs USE_CASE:
+  If the segment mainly explains product capabilities, UI, tabs, mechanics, or integrations, use FEATURE.
+  If it mainly shows how a person, team, or role uses the product in a workflow or scenario, use USE_CASE.
 
----
+- TARGET vs USE_CASE:
+  Use TARGET only when the segment's main message is who the product is for.
+  If named roles or teams are used mainly to illustrate workflows, responsibilities, or how the product is used, use USE_CASE instead.
 
-## IMPORTANT RULES (STRICT)
+- FEATURE vs VALUE_PROP:
+  Use FEATURE when concrete product behavior, screens, outputs, demos, integrations, or mechanics are central.
+  Use VALUE_PROP only when the segment mainly argues for benefits, outcomes, ROI, savings, or reasons to choose the product.
 
-1. DO NOT hallucinate.
-   - If a funnel section is not clearly present, DO NOT create one.
+- CTA_SECTION vs VALUE_PROP vs GENERIC:
+  Use CTA_SECTION when the main purpose is taking action and the segment centers on a conversion prompt, button, form, or booking/signup step.
+  Use VALUE_PROP when the segment mainly persuades with product benefits.
+  Use GENERIC for news, resources, updates, support, or utility content even if the language sounds positive.
 
-2. ONLY classify when confident.
-   - Ambiguous sections must be ignored.
+## Position hints
 
-3. ONLY select TOP-LEVEL meaningful elements.
-   - Avoid small UI components like buttons, spans, icons.
-   - Focus on section-level containers.
+- first major product block: often HERO
+- early logo strip: often SOCIAL_PROOF
+- repeated middle product sections: often FEATURE, USE_CASE, VALUE_PROP, or TARGET
+- near the end: often FAQ or CTA_SECTION
 
-4. Each selected element MUST use its provided `id`.
-
-5. One element → ONE funnel type only.
-
-6. If no valid funnel elements exist, return an empty list.
-
-7. All sections are OPTIONAL.
-   - Do NOT assume all funnel types must exist.
-
----
-
-## FUNNEL TYPES
-
-Only use the following categories:
-
-1. HERO
-2. PROBLEM
-3. TARGET
-4. USE_CASE
-5. FEATURE
-6. VALUE_PROP
-7. SOCIAL_PROOF
-8. PRICING
-9. FAQ
-10. CTA_SECTION
-11. GENERIC
-
----
-
-## DEFINITIONS (PRIMARY INTENT BASED)
-
-- HERO:
-  The first impression section that immediately communicates what the product is and why it matters.
-  It typically includes a strong headline, supporting subtext, and a primary call-to-action.
-  Its main goal is to quickly convey the core idea of the product.
-
-- PROBLEM:
-  A section focused on identifying and articulating key user pain points or challenges.
-  It emphasizes relatable frustrations or inefficiencies to build empathy and highlight the need for a solution.
-
-- TARGET:
-  A section that clearly defines the intended audience of the product.
-  It specifies user groups (e.g., roles, industries, situations) so that relevant users can recognize themselves.
-
-- USE_CASE:
-  A section that demonstrates how the product is used in real-world scenarios.
-  It focuses on practical situations, workflows, or applications that help users understand how the product fits into their context.
-  It is typically structured around scenarios or examples, not feature listings.
-
-- FEATURE:
-  A section that explains what the product does.
-  It focuses on specific functionalities, capabilities, or how the product works.
-  If the section describes actions the user can take or features the product provides, it should be classified as FEATURE.
-
-- VALUE_PROP:
-  A section that communicates why the product is valuable or worth choosing.
-  It focuses on benefits, outcomes, or key strengths, without going into specific functionality.
-  If the section emphasizes the value or advantages of the product rather than explaining how it works, it should be classified as VALUE_PROP.
-
-- SOCIAL_PROOF:
-  A section that builds trust by showing that others are already using the product.
-  Includes testimonials, customer logos, user counts, or reviews.
-
-- PRICING:
-  A section that presents pricing plans or cost structures.
-  It helps users understand available options and differences between tiers.
-
-- FAQ:
-  A section that answers common user questions or concerns.
-  It reduces uncertainty by addressing typical objections or usage-related queries.
-
-- CTA_SECTION:
-  A section primarily designed to drive user action.
-  It includes a clear call-to-action with minimal additional content.
-
-- GENERIC:
-  A section that does not clearly fit into any of the defined categories.
-  It typically provides general or supporting content that is not focused on product functionality, value, or conversion.
-  This includes content such as blog posts, articles, updates, or simple descriptive text.
-
-
----
-
-## DISAMBIGUATION GUIDELINES
-
-- If the section focuses on capabilities or what the product does → FEATURE
-- If it focuses on benefits, outcomes, or why the product is valuable (without explaining functionality) → VALUE_PROP
-
-- If it describes:
-  - “who it is for” → TARGET
-  - “how it is used in context or scenarios” → USE_CASE
-
-- If the section is structured as a list or grid of items:
-  - describing features or actions → FEATURE
-  - describing strengths or high-level benefits → VALUE_PROP
-
-- If the section includes both functionality and benefits:
-  - and functionality is clearly described → FEATURE
-
-- If the section does not clearly match any category and lacks a strong conversion intent → GENERIC
----
-
-## OUTPUT FORMAT (STRICT JSON)
-
-Return ONLY valid JSON.
+## Output format
 
 ```json
 [
   {
-    "id": "element_id",
+    "id": "segment_id",
     "funnel": "HERO",
     "confidence": 0.92
   }
 ]
-````
+```
 
-* id: from input
-* funnel: one of the predefined categories
-* confidence: 0.0 ~ 1.0
+## Input segments
 
----
-
-## INPUT HTML
-
-{{INPUT_HTML}}
-
+{{INPUT_SEGMENTS}}

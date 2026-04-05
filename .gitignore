@@ -1,8 +1,19 @@
 .DS_Store
 .env
+git_convention
+.venv/
 __pycache__/
 *.pyc
 
+examples/input/*
+!examples/input/input.html
+
+examples/output/*
+!examples/output/funnel_overlay.js
+!examples/output/funnel_selector_output.json
+!examples/output/funnel.json
+!examples/output/output.txt
+
 # runtime artifacts
-runs/*
-!runs/.gitkeep
+run/*
+!run/.gitkeep

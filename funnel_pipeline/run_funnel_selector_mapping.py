@@ -15,10 +15,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="funnel-json.json + input.html을 받아 selector 매핑 결과와 오버레이 JS를 생성합니다."
     )
-    parser.add_argument("--input-html", default="input.html", help="원본 HTML 파일 경로")
-    parser.add_argument("--funnel-json", default="funnel-json.json", help="퍼널 분석 JSON 파일 경로")
-    parser.add_argument("--output-json", default="funnel_selector_output.json", help="selector 매핑 출력 JSON")
-    parser.add_argument("--output-js", default="funnel_overlay.js", help="브라우저 콘솔 주입용 JS 파일")
+    parser.add_argument("--input-html", required=True, help="원본 HTML 파일 경로")
+    parser.add_argument("--funnel-json", default="run/funnel.json", help="퍼널 분석 JSON 파일 경로")
+    parser.add_argument("--output-json", default="run/funnel_selector_output.json", help="selector 매핑 출력 JSON")
+    parser.add_argument("--output-js", default="run/funnel_overlay.js", help="브라우저 콘솔 주입용 JS 파일")
     return parser.parse_args()
 
 
@@ -148,10 +148,12 @@ def main() -> None:
     result = mapped_items
 
     output_json_path = Path(args.output_json)
+    output_json_path.parent.mkdir(parents=True, exist_ok=True)
     output_json_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
     overlay_js = build_overlay_js(mapped_items)
     output_js_path = Path(args.output_js)
+    output_js_path.parent.mkdir(parents=True, exist_ok=True)
     output_js_path.write_text(overlay_js, encoding="utf-8")
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
