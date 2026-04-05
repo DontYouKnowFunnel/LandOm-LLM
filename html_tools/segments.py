@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from bs4 import Tag
 
 from .hash_id import generate_hash
-from .segment_compress_denoised_soft import compress_segment_node_denoised_soft
+from .segment_compress_denoised import compress_segment_node_denoised
 from .selector_lookup import build_css_selector
 from .spec import CompressionSpec
 from .transform import attrs_to_string, clean_text, filter_attrs, iter_kept_nodes, parse_html_root
@@ -119,7 +119,7 @@ def compress_segment_node(
     max_lines: int = 36,
     text_max_len: int = 180,
 ) -> str:
-    return compress_segment_node_denoised_soft(
+    return compress_segment_node_denoised(
         node,
         spec,
         max_lines=max_lines,

@@ -128,7 +128,7 @@ def repeat_limit(category: str, signature: str) -> int:
     return 3
 
 
-def compress_segment_node_denoised_soft(
+def compress_segment_node_denoised(
     node: Tag,
     spec: CompressionSpec,
     *,
