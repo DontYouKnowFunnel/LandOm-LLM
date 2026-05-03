@@ -3,6 +3,9 @@ import os
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import funnel_pipeline.run_funnel_langgraph as _funnel_flow
 from html_tools.selector_lookup import map_funnel_items_to_selectors
 from html_tools.spec import CompressionSpec

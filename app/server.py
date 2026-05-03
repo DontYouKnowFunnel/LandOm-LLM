@@ -3,12 +3,16 @@ import os
 from typing import Any
 
 import httpx
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.pipeline import run as run_pipeline
 
 logger = logging.getLogger(__name__)
+
 
 app = FastAPI(title="LandOm-LLM Funnel API")
 
