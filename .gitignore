@@ -2,6 +2,7 @@
 .env
 git_convention
 .venv/
+.claude/
 __pycache__/
 *.pyc
 
