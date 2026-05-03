@@ -14,26 +14,26 @@ app = FastAPI(title="LandOm-LLM Funnel API")
 
 
 class AnalyzeRequest(BaseModel):
-    apiKey: str = Field(..., min_length=1)
+    projectId: int = Field(..., gt=0)
     html: str = Field(..., min_length=1)
 
 
 @app.post("/api/v1/funnels/analyze", status_code=status.HTTP_202_ACCEPTED)
 def analyze(req: AnalyzeRequest, background_tasks: BackgroundTasks) -> None:
-    callback_url = os.getenv("BACKEND_CALLBACK_URL")
-    if not callback_url:
+    base_url = os.getenv("BACKEND_BASE_URL")
+    if not base_url:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="BACKEND_CALLBACK_URL is not configured",
+            detail="BACKEND_BASE_URL is not configured",
         )
-    background_tasks.add_task(_process_and_callback, req.apiKey, req.html, callback_url)
+    background_tasks.add_task(_process_and_callback, req.projectId, req.html, base_url)
 
 
-def _process_and_callback(api_key: str, html: str, callback_url: str) -> None:
+def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
     try:
         items = run_pipeline(html)
     except Exception:
-        logger.exception("funnel pipeline failed for apiKey=%s", api_key)
+        logger.exception("funnel pipeline failed for projectId=%s", project_id)
         return
 
     funnels = [
@@ -44,7 +44,8 @@ def _process_and_callback(api_key: str, html: str, callback_url: str) -> None:
         }
         for idx, item in enumerate(items, start=1)
     ]
-    payload: dict[str, Any] = {"apiKey": api_key, "funnels": funnels}
+    payload: dict[str, Any] = {"funnels": funnels}
+    callback_url = f"{base_url.rstrip('/')}/api/v1/projects/{project_id}/analytics/section"
 
     try:
         with httpx.Client(timeout=10.0) as client:
@@ -52,5 +53,5 @@ def _process_and_callback(api_key: str, html: str, callback_url: str) -> None:
             response.raise_for_status()
     except Exception:
         logger.exception(
-            "callback POST failed url=%s apiKey=%s", callback_url, api_key
+            "callback POST failed url=%s projectId=%s", callback_url, project_id
         )
