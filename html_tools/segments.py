@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from bs4 import Tag
 
 from .hash_id import generate_hash
+from .segment_compress_denoised import compress_segment_node_denoised
 from .selector_lookup import build_css_selector
 from .spec import CompressionSpec
 from .transform import attrs_to_string, clean_text, filter_attrs, iter_kept_nodes, parse_html_root
@@ -115,32 +116,15 @@ def compress_segment_node(
     node: Tag,
     spec: CompressionSpec,
     *,
-    max_lines: int = 24,
-    text_max_len: int = 120,
+    max_lines: int = 36,
+    text_max_len: int = 180,
 ) -> str:
-    segment_spec = replace(spec, text_max_len=text_max_len)
-    lines: List[str] = []
-
-    for index, (subnode, path, text) in enumerate(iter_kept_nodes(node, segment_spec)):
-        if index >= max_lines:
-            lines.append("...")
-            break
-
-        attrs = filter_attrs(subnode.attrs, segment_spec)
-        attr_str = attrs_to_string(attrs)
-        indent = "  " * min(len(path), 5)
-
-        tag_str = f"{indent}<{subnode.name}"
-        if attr_str:
-            tag_str += f" {attr_str}"
-        tag_str += ">"
-
-        if text:
-            lines.append(f'{tag_str} text="{clean_text(text, max_len=text_max_len)}"')
-        else:
-            lines.append(tag_str)
-
-    return "\n".join(lines)
+    return compress_segment_node_denoised(
+        node,
+        spec,
+        max_lines=max_lines,
+        text_max_len=text_max_len,
+    )
 
 
 def extract_page_segments(html: str, spec: Optional[CompressionSpec] = None) -> List[Dict[str, Any]]:

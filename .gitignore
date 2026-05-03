@@ -17,3 +17,6 @@ examples/output/*
 # runtime artifacts
 run/*
 !run/.gitkeep
+
+# external benchmark workspace
+LandOm-LLM-Bench/
