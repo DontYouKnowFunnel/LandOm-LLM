@@ -16,8 +16,8 @@ examples/output/*
 !examples/output/output.txt
 
 # runtime artifacts
-run/*
-!run/.gitkeep
+runs/*
+!runs/.gitkeep
 
 # external benchmark workspace
 LandOm-LLM-Bench/
