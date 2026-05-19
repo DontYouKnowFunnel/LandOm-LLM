@@ -82,9 +82,10 @@ def normalize_funnel_name(name: Optional[str]) -> Optional[str]:
     """Funnel 라벨 표기 차이를 정규화합니다."""
     if not name:
         return name
-    if name == "CTA_SECTION":
-        return "CTA"
-    return name
+    normalized = name.strip().upper()
+    if normalized == "CTA":
+        return "CTA_SECTION"
+    return normalized
 
 
 def map_funnel_items_to_selectors(
