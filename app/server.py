@@ -11,7 +11,8 @@ from pydantic import BaseModel, Field
 
 from app.pipeline import run as run_pipeline
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uvicorn.error")
+logger.setLevel(logging.INFO)
 
 
 app = FastAPI(title="LandOm-LLM Funnel API")
@@ -20,6 +21,15 @@ app = FastAPI(title="LandOm-LLM Funnel API")
 class AnalyzeRequest(BaseModel):
     projectId: int = Field(..., gt=0)
     html: str = Field(..., min_length=1)
+
+
+class OptimizationRequest(BaseModel):
+    projectId: int = Field(..., gt=0)
+    sectionId: int = Field(..., gt=0)
+    sectionName: str = Field(..., min_length=1)
+    sectionHtml: str = Field(..., min_length=1)
+    visitorBehaviorData: dict[str, Any] = Field(default_factory=dict)
+    persona: str | None = None
 
 
 @app.post("/api/v1/funnels/analyze", status_code=status.HTTP_202_ACCEPTED)
@@ -31,6 +41,25 @@ def analyze(req: AnalyzeRequest, background_tasks: BackgroundTasks) -> None:
             detail="BACKEND_BASE_URL is not configured",
         )
     background_tasks.add_task(_process_and_callback, req.projectId, req.html, base_url)
+
+
+@app.post("/api/v1/funnels/optimize", status_code=status.HTTP_202_ACCEPTED)
+def optimize(req: OptimizationRequest, background_tasks: BackgroundTasks) -> None:
+    logger.info(
+        "optimization request received projectId=%s sectionId=%s sectionName=%s "
+        "persona=%r sectionHtmlLength=%s sectionHtmlPreview=%r "
+        "visitorBehaviorSessionCount=%s visitorBehaviorData=%s",
+        req.projectId,
+        req.sectionId,
+        req.sectionName,
+        req.persona,
+        len(req.sectionHtml),
+        _preview(req.sectionHtml),
+        _session_count(req.visitorBehaviorData),
+        req.visitorBehaviorData,
+    )
+
+    background_tasks.add_task(_log_optimization_request_received, req)
 
 
 def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
@@ -59,3 +88,55 @@ def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
         logger.exception(
             "callback POST failed url=%s projectId=%s", callback_url, project_id
         )
+
+
+def _log_optimization_request_received(req: OptimizationRequest) -> None:
+    logger.info(
+        "optimization request accepted projectId=%s sectionId=%s",
+        req.projectId,
+        req.sectionId,
+    )
+
+
+def _send_optimization_plan_callback(
+    *,
+    project_id: int,
+    section_id: int,
+    optimization_plan: str,
+    base_url: str,
+) -> None:
+    payload: dict[str, Any] = {
+        "projectId": project_id,
+        "sectionId": section_id,
+        "optimizationPlan": optimization_plan,
+    }
+    callback_url = (
+        f"{base_url.rstrip('/')}/api/v1/projects/{project_id}"
+        f"/optimizations/{section_id}"
+    )
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.patch(callback_url, json=payload)
+            response.raise_for_status()
+    except Exception:
+        logger.exception(
+            "optimization callback PATCH failed url=%s projectId=%s sectionId=%s",
+            callback_url,
+            project_id,
+            section_id,
+        )
+
+
+def _preview(value: str, limit: int = 500) -> str:
+    compact = " ".join(value.split())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[:limit]}..."
+
+
+def _session_count(visitor_behavior_data: dict[str, Any]) -> int:
+    sessions = visitor_behavior_data.get("sessions")
+    if isinstance(sessions, list):
+        return len(sessions)
+    return 0
