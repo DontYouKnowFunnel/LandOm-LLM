@@ -16,8 +16,10 @@ examples/output/*
 !examples/output/output.txt
 
 # runtime artifacts
+run/qdrant/
 runs/*
 !runs/.gitkeep
+test_input/
 
 # external benchmark workspace
 LandOm-LLM-Bench/
