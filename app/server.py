@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Any
@@ -10,6 +11,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.pipeline import run as run_pipeline
+from rag_pipeline.optimization_pipeline import run_optimization
 
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.INFO)
@@ -45,6 +47,12 @@ def analyze(req: AnalyzeRequest, background_tasks: BackgroundTasks) -> None:
 
 @app.post("/api/v1/funnels/optimize", status_code=status.HTTP_202_ACCEPTED)
 def optimize(req: OptimizationRequest, background_tasks: BackgroundTasks) -> None:
+    base_url = os.getenv("BACKEND_BASE_URL")
+    if not base_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="BACKEND_BASE_URL is not configured",
+        )
     logger.info(
         "optimization request received projectId=%s sectionId=%s sectionName=%s "
         "persona=%r sectionHtmlLength=%s sectionHtmlPreview=%r "
@@ -59,7 +67,7 @@ def optimize(req: OptimizationRequest, background_tasks: BackgroundTasks) -> Non
         req.visitorBehaviorData,
     )
 
-    background_tasks.add_task(_log_optimization_request_received, req)
+    background_tasks.add_task(_process_optimization_and_callback, req, base_url)
 
 
 def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
@@ -90,11 +98,28 @@ def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
         )
 
 
-def _log_optimization_request_received(req: OptimizationRequest) -> None:
-    logger.info(
-        "optimization request accepted projectId=%s sectionId=%s",
-        req.projectId,
-        req.sectionId,
+def _process_optimization_and_callback(req: OptimizationRequest, base_url: str) -> None:
+    try:
+        result = run_optimization(
+            section_html=req.sectionHtml,
+            section_name=req.sectionName,
+            persona=req.persona,
+            visitor_behavior_data=req.visitorBehaviorData,
+        )
+    except Exception:
+        logger.exception(
+            "optimization pipeline failed projectId=%s sectionId=%s",
+            req.projectId,
+            req.sectionId,
+        )
+        return
+
+    optimization_plan = json.dumps(result["recommendation"], ensure_ascii=False, indent=2)
+    _send_optimization_plan_callback(
+        project_id=req.projectId,
+        section_id=req.sectionId,
+        optimization_plan=optimization_plan,
+        base_url=base_url,
     )
 
 
