@@ -49,6 +49,12 @@ class CollectionSpec:
     db_type: str
 
 
+@dataclass(frozen=True)
+class CollectionStatus:
+    exists: bool
+    points_count: int | None = None
+
+
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         raise FileNotFoundError(f"JSONL file not found: {path}")
@@ -96,6 +102,47 @@ def embed_texts(
         if sleep_seconds > 0:
             time.sleep(sleep_seconds)
     return vectors
+
+
+def get_collection_status(qdrant: QdrantClient, collection_name: str) -> CollectionStatus:
+    try:
+        exists = qdrant.collection_exists(collection_name)
+    except AttributeError:
+        try:
+            info = qdrant.get_collection(collection_name)
+            point_count = resolve_point_count(qdrant, collection_name, info)
+            return CollectionStatus(exists=True, points_count=point_count)
+        except Exception:
+            return CollectionStatus(exists=False)
+
+    if not exists:
+        return CollectionStatus(exists=False)
+
+    info = qdrant.get_collection(collection_name)
+    point_count = resolve_point_count(qdrant, collection_name, info)
+    return CollectionStatus(exists=True, points_count=point_count)
+
+
+def resolve_point_count(qdrant: QdrantClient, collection_name: str, info: Any) -> int | None:
+    point_count = getattr(info, "points_count", None)
+    if point_count is not None:
+        return int(point_count)
+    try:
+        return int(qdrant.count(collection_name=collection_name, exact=True).count)
+    except Exception:
+        return None
+
+
+def should_skip_collection(
+    qdrant: QdrantClient,
+    collection_name: str,
+    expected_count: int,
+) -> tuple[bool, int | None]:
+    status = get_collection_status(qdrant, collection_name)
+    if not status.exists:
+        return False, None
+    point_count = status.points_count
+    return point_count is not None and point_count >= expected_count, point_count
 
 
 def ensure_collection(
@@ -173,7 +220,7 @@ def payload_for_record(
 
 def upsert_collection(
     qdrant: QdrantClient,
-    openai: OpenAI,
+    openai: OpenAI | None,
     spec: CollectionSpec,
     *,
     language: str,
@@ -181,6 +228,7 @@ def upsert_collection(
     batch_size: int,
     upsert_batch_size: int,
     recreate: bool,
+    skip_if_exists: bool,
     sleep_seconds: float,
 ) -> int:
     embedding_field = f"embedding_text_{language}"
@@ -197,6 +245,19 @@ def upsert_collection(
 
     if not usable_records:
         raise RuntimeError(f"No records with {embedding_field} found in {spec.source_path}")
+
+    if skip_if_exists:
+        should_skip, point_count = should_skip_collection(qdrant, spec.name, len(usable_records))
+        if should_skip:
+            count_text = "unknown" if point_count is None else str(point_count)
+            print(
+                f"\n[{spec.name}] skipped: collection already exists "
+                f"with {count_text} points (expected >= {len(usable_records)})"
+            )
+            return point_count or 0
+
+    if openai is None:
+        openai = openai_client()
 
     print(f"\n[{spec.name}] records={len(usable_records)} embedding_field={embedding_field}")
     vectors = embed_texts(
@@ -279,8 +340,16 @@ def main() -> int:
     parser.add_argument("--upsert-batch-size", type=int, default=64)
     parser.add_argument("--sleep-seconds", type=float, default=0.0)
     parser.add_argument("--recreate", action="store_true")
+    parser.add_argument(
+        "--skip-if-exists",
+        action="store_true",
+        help="Skip a collection when it already exists in Qdrant and has points.",
+    )
     parser.add_argument("--no-smoke-test", action="store_true")
     args = parser.parse_args()
+
+    if args.recreate and args.skip_if_exists:
+        parser.error("--skip-if-exists cannot be used together with --recreate.")
 
     if args.language == "ko":
         if args.problem_collection == "problem_patterns_en":
@@ -289,12 +358,12 @@ def main() -> int:
             args.intervention_collection = "intervention_evidence_ko"
 
     load_dotenv(PROJECT_ROOT / ".env")
-    client = openai_client()
     qdrant = make_qdrant_client(
         path=args.qdrant_path,
         url=args.qdrant_url,
         api_key=args.qdrant_api_key,
     )
+    client: OpenAI | None = None
 
     specs = [
         CollectionSpec(args.problem_collection, args.problem_jsonl, "problem_pattern"),
@@ -312,10 +381,13 @@ def main() -> int:
             batch_size=args.batch_size,
             upsert_batch_size=args.upsert_batch_size,
             recreate=args.recreate,
+            skip_if_exists=args.skip_if_exists,
             sleep_seconds=args.sleep_seconds,
         )
 
     if not args.no_smoke_test:
+        if client is None:
+            client = openai_client()
         if args.language == "en":
             problem_query = (
                 "Funnel: HERO. Persona traits: low awareness, time constrained. "
