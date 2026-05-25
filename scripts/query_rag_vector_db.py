@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from rag_pipeline.config import AI_MODELS  # noqa: E402
 from rag_pipeline.retrieval_utils import qdrant_client as make_qdrant_client  # noqa: E402
 
 
@@ -77,10 +78,10 @@ def compact_payload(payload: dict[str, Any], language: str) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--collection", default="problem_patterns_en")
-    parser.add_argument("--qdrant-path", type=Path, default=PROJECT_ROOT / "run/qdrant")
+    parser.add_argument("--qdrant-path", type=Path, default=PROJECT_ROOT / "runs/qdrant")
     parser.add_argument("--qdrant-url", help="Remote Qdrant URL. Defaults to QDRANT_URL.")
     parser.add_argument("--qdrant-api-key", help="Remote Qdrant API key. Defaults to QDRANT_API_KEY.")
-    parser.add_argument("--embedding-model", default="text-embedding-3-small")
+    parser.add_argument("--embedding-model", default=AI_MODELS.embedding[1])
     parser.add_argument("--language", choices=("en", "ko"), default="en")
     parser.add_argument("--query", required=True)
     parser.add_argument("--top-k", type=int, default=5)
