@@ -34,12 +34,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
+from rag_pipeline.config import AI_MODELS  # noqa: E402
 from rag_pipeline.retrieval_utils import qdrant_client as make_qdrant_client  # noqa: E402
 
 
 DEFAULT_PROBLEM_PATH = PROJECT_ROOT / "data/rag/problem_patterns_en.jsonl"
 DEFAULT_INTERVENTION_PATH = PROJECT_ROOT / "data/rag/revision_evidence_en.jsonl"
-DEFAULT_QDRANT_PATH = PROJECT_ROOT / "run/qdrant"
+DEFAULT_EMBEDDED_QDRANT_DIR = PROJECT_ROOT / "runs/qdrant"
 
 
 @dataclass(frozen=True)
@@ -328,8 +329,8 @@ def search_smoke_test(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--language", choices=("en", "ko"), default="en")
-    parser.add_argument("--embedding-model", default="text-embedding-3-small")
-    parser.add_argument("--qdrant-path", type=Path, default=DEFAULT_QDRANT_PATH)
+    parser.add_argument("--embedding-model", default=AI_MODELS.embedding[1])
+    parser.add_argument("--qdrant-path", type=Path, default=DEFAULT_EMBEDDED_QDRANT_DIR)
     parser.add_argument("--qdrant-url", help="Remote Qdrant URL. Defaults to QDRANT_URL.")
     parser.add_argument("--qdrant-api-key", help="Remote Qdrant API key. Defaults to QDRANT_API_KEY.")
     parser.add_argument("--problem-jsonl", type=Path, default=DEFAULT_PROBLEM_PATH)

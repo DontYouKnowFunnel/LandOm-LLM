@@ -8,9 +8,10 @@ from typing import Any
 
 from qdrant_client import QdrantClient, models
 
+from rag_pipeline.config import AI_MODELS
 from rag_pipeline.features import ExtractedFeatures
 from rag_pipeline.retrieval_utils import (
-    DEFAULT_QDRANT_PATH,
+    DEFAULT_EMBEDDED_QDRANT_DIR,
     confidence_bonus,
     embed_query,
     openai_client,
@@ -101,9 +102,9 @@ class ProblemRetriever:
     def __init__(
         self,
         *,
-        qdrant_path: Path | None = DEFAULT_QDRANT_PATH,
+        qdrant_path: Path | None = DEFAULT_EMBEDDED_QDRANT_DIR,
         collection_name: str = "problem_patterns_en",
-        embedding_model: str = "text-embedding-3-small",
+        embedding_model: str = AI_MODELS.embedding[1],
         weights: dict[str, float] | None = None,
         qdrant: QdrantClient | None = None,
         openai: Any | None = None,

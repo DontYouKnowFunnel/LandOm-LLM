@@ -20,12 +20,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from rag_pipeline.config import AI_MODELS
 from rag_pipeline.html_preprocessor import preprocess_html_for_llm
 
 
 DEFAULT_RETRIEVAL_JSON = PROJECT_ROOT / "run/rag_retrieval_smoke_override.json"
 DEFAULT_OUTPUT_JSON = PROJECT_ROOT / "run/rag_recommendation.json"
 DEFAULT_OUTPUT_MD = PROJECT_ROOT / "run/rag_recommendation.md"
+OPENAI_TIMEOUT_SECONDS = 90.0
 
 
 PERSONA_TRAIT_DESCRIPTIONS_KO = {
@@ -85,17 +87,6 @@ HTML_FEATURE_DESCRIPTIONS_KO = {
     "unclear_form_value": "폼을 작성해야 하는 이유와 사용자가 받는 보상이 불명확함",
     "too_many_form_fields": "입력해야 할 항목이 많아 시작 부담이 커질 수 있음",
     "missing_privacy_reassurance": "개인정보 입력 시 용도, 보안, 스팸 방지에 대한 안심 문구가 부족함",
-}
-
-
-EXPECTED_EFFECT_KO = {
-    "dwell_time": "섹션 체류 시간",
-    "stage_exit": "해당 단계 이탈",
-    "comprehension_friction": "가치 이해 마찰",
-    "cta_interaction": "CTA 상호작용",
-    "conversion_entry": "전환 진입",
-    "form_start": "폼 시작",
-    "form_completion": "폼 완료",
 }
 
 
@@ -263,38 +254,15 @@ def compact_generation_context(
     }
 
 
-def resolve_client(provider: str, model: str | None, base_url: str | None) -> tuple[OpenAI, str]:
+def resolve_client(model: str | None) -> tuple[OpenAI, str]:
     load_dotenv(PROJECT_ROOT / ".env")
-    timeout = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "90"))
-    if provider == "openai":
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY is not set.")
-        return OpenAI(
-            api_key=api_key,
-            base_url=base_url or os.getenv("OPENAI_BASE_URL") or None,
-            timeout=timeout,
-        ), (
-            model or os.getenv("OPENAI_RECOMMENDATION_MODEL") or "gpt-5.4-mini"
-        )
-    if provider == "groq":
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise RuntimeError("GROQ_API_KEY is not set.")
-        return OpenAI(
-            api_key=api_key,
-            base_url=base_url or "https://api.groq.com/openai/v1",
-            timeout=timeout,
-        ), (
-            model or os.getenv("GROQ_RECOMMENDATION_MODEL") or "meta-llama/llama-4-scout-17b-16e-instruct"
-        )
-    if provider == "ollama":
-        return OpenAI(
-            api_key=os.getenv("OLLAMA_API_KEY") or "ollama",
-            base_url=base_url or os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434/v1",
-            timeout=timeout,
-        ), (model or os.getenv("OLLAMA_MODEL") or "llama2:latest")
-    raise RuntimeError(f"Unsupported provider: {provider}")
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set.")
+    return OpenAI(
+        api_key=api_key,
+        timeout=OPENAI_TIMEOUT_SECONDS,
+    ), (model or AI_MODELS.recommendation[1])
 
 
 def recommendation_prompt(context: dict[str, Any]) -> str:
@@ -389,11 +357,10 @@ def extract_json_text(raw: str) -> str:
 def generate_with_llm(
     *,
     context: dict[str, Any],
-    provider: str,
     model: str | None,
-    base_url: str | None,
 ) -> dict[str, Any]:
-    client, resolved_model = resolve_client(provider, model, base_url)
+    provider = AI_MODELS.recommendation[0]
+    client, resolved_model = resolve_client(model)
     request_kwargs: dict[str, Any] = {
         "model": resolved_model,
         "messages": [
@@ -404,8 +371,7 @@ def generate_with_llm(
             {"role": "user", "content": recommendation_prompt(context)},
         ],
     }
-    if provider == "openai":
-        request_kwargs["reasoning_effort"] = "medium"
+    request_kwargs["reasoning_effort"] = "medium"
     response = client.chat.completions.create(**request_kwargs)
     content = response.choices[0].message.content or ""
     parsed = json.loads(extract_json_text(content))
@@ -510,95 +476,12 @@ def sanitize_generated_result(value: Any, *, in_trace: bool = False) -> Any:
     return value
 
 
-def direction_from_expected_effect(effect: dict[str, str]) -> list[str]:
-    mapping = {
-        "increase": "증가",
-        "decrease": "감소",
-    }
-    directions = []
-    for key, value in effect.items():
-        metric = EXPECTED_EFFECT_KO.get(key, key.replace("_", " "))
-        directions.append(f"{metric} {mapping.get(value, value)}")
-    return directions or ["해당 퍼널 단계에서 이탈 가능성 감소"]
-
-
-def generate_template(context: dict[str, Any]) -> dict[str, Any]:
-    problem = context["primary_problem"]
-    interventions = context["candidate_interventions"][:3]
-    trace = context.get("internal_trace_do_not_quote", {})
-    problem_case = trace.get("primary_problem_case") or "unknown_problem"
-    problem_name = problem.get("problem_name_ko") or label_ko(problem_case)
-    section = context.get("section_label") or "GENERIC"
-    interpretation = context.get("user_facing_input_interpretation", {})
-    signals = []
-    for value in interpretation.get("persona", []):
-        signals.append(f"페르소나: {value}")
-    for value in interpretation.get("behavior", []):
-        signals.append(f"행동 신호: {value}")
-    for value in interpretation.get("section_observations", []):
-        signals.append(f"섹션 관찰: {value}")
-
-    recommendations = []
-    for index, item in enumerate(interventions, start=1):
-        title = item.get("intervention_title_ko") or "메시지와 행동 유도 개선"
-        recommendations.append(
-            {
-                "rank": index,
-                "title": title,
-                "what_to_change": [
-                    f"{section} 섹션의 핵심 문구를 '{problem_name}' 장벽을 낮추는 방향으로 수정합니다.",
-                    f"검색된 개입 원리인 '{title}'에 맞춰 현재 섹션의 메시지와 행동 유도를 조정합니다.",
-                ],
-                "copy_direction": {
-                    "headline": "기능명보다 사용자가 얻는 결과와 상황을 먼저 드러내는 문장으로 바꿉니다.",
-                    "subcopy": "누구에게 어떤 문제가 줄어드는지, 왜 지금 이 섹션에서 계속 읽어야 하는지를 짧게 보강합니다.",
-                    "cta": "클릭 후 얻게 되는 결과나 다음 단계를 CTA 문구에 반영합니다.",
-                },
-                "layout_direction": [
-                    "핵심 가치 문구, 보조 근거, CTA가 한 화면 안에서 함께 보이도록 배치합니다.",
-                    "근거가 되는 proof나 예시가 있다면 CTA 전후에 가깝게 둡니다.",
-                ],
-                "expected_behavior_change": direction_from_expected_effect(
-                    item.get("expected_effect_direction", {})
-                ),
-                "evidence_basis": "검색된 긍정 패턴은 사용자 결과를 먼저 이해시키고, 근거와 행동 경로를 가까이 배치하는 방향의 개입을 지지합니다.",
-                "risk_or_caveat": "페르소나의 실제 의도와 맞지 않으면 메시지가 일반적인 마케팅 문구처럼 보일 수 있습니다.",
-            }
-        )
-
-    return {
-        "summary": f"{section} 섹션에서 {problem_name} 문제가 우선 의심되며, 상위 개선 방향은 {recommendations[0]['title'] if recommendations else '메시지 명확화'}입니다.",
-        "diagnosis": {
-            "funnel_stage": section,
-            "problem_name_ko": problem_name,
-            "why_this_is_a_problem": problem.get("problem_description")
-            or "현재 입력 섹션의 메시지/구조가 사용자의 다음 행동을 충분히 돕지 못할 가능성이 있습니다.",
-            "supporting_signals": signals,
-            "confidence_note": f"Problem retrieval score={problem.get('final_score')}. 이 값은 전환 개선 확률이 아니라 검색/재랭킹 점수입니다.",
-        },
-        "recommendations": recommendations,
-        "priority_order": [item["title"] for item in recommendations],
-        "validation_plan": [
-            "동일 섹션에서 체류 시간, 스크롤 깊이, CTA 클릭률, 단계 이탈률을 전후 비교합니다.",
-            "개선안은 한 번에 하나의 핵심 개입만 적용해 어떤 변화가 효과를 냈는지 분리합니다.",
-        ],
-        "_trace": {
-            "primary_problem_case": problem_case,
-            "intervention_ids": trace.get("intervention_ids", []),
-        },
-        "_generation_metadata": {"mode": "template"},
-    }
-
-
 def generate_recommendation(
     *,
     retrieval: dict[str, Any],
     section_html: str,
     top_n: int = 3,
-    mode: str = "llm",
-    provider: str = "openai",
     model: str | None = None,
-    base_url: str | None = None,
 ) -> dict[str, Any]:
     html_summary = extract_html_summary_from_html(section_html)
     context = compact_generation_context(
@@ -606,17 +489,10 @@ def generate_recommendation(
         html_summary=html_summary,
         top_n=top_n,
     )
-    if mode == "llm":
-        result = generate_with_llm(
-            context=context,
-            provider=provider,
-            model=model,
-            base_url=base_url,
-        )
-    elif mode == "template":
-        result = generate_template(context)
-    else:
-        raise RuntimeError(f"Unsupported recommendation generation mode: {mode}")
+    result = generate_with_llm(
+        context=context,
+        model=model,
+    )
     return sanitize_generated_result(result)
 
 
@@ -694,10 +570,7 @@ def main() -> int:
     parser.add_argument("--output-json", type=Path, default=DEFAULT_OUTPUT_JSON)
     parser.add_argument("--output-md", type=Path, default=DEFAULT_OUTPUT_MD)
     parser.add_argument("--top-n", type=int, default=3)
-    parser.add_argument("--mode", choices=("template", "llm"), default="template")
-    parser.add_argument("--provider", choices=("openai", "groq", "ollama"), default="openai")
     parser.add_argument("--model")
-    parser.add_argument("--base-url")
     args = parser.parse_args()
 
     retrieval = load_json(args.retrieval_json)
@@ -714,15 +587,10 @@ def main() -> int:
         html_summary=html_summary,
         top_n=args.top_n,
     )
-    if args.mode == "llm":
-        result = generate_with_llm(
-            context=context,
-            provider=args.provider,
-            model=args.model,
-            base_url=args.base_url,
-        )
-    else:
-        result = generate_template(context)
+    result = generate_with_llm(
+        context=context,
+        model=args.model,
+    )
     result = sanitize_generated_result(result)
 
     args.output_json.parent.mkdir(parents=True, exist_ok=True)

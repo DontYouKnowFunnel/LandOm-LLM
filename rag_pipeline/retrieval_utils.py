@@ -12,7 +12,9 @@ from qdrant_client import QdrantClient
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_QDRANT_PATH = PROJECT_ROOT / "run/qdrant"
+DEFAULT_EMBEDDED_QDRANT_DIR = PROJECT_ROOT / "runs/qdrant"
+OPENAI_TIMEOUT_SECONDS = 90.0
+QDRANT_TIMEOUT_SECONDS = 10.0
 _EMBEDDING_CACHE: dict[tuple[str, str], list[float]] = {}
 
 
@@ -21,8 +23,7 @@ def openai_client() -> OpenAI:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env before retrieval.")
-    timeout = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "90"))
-    return OpenAI(api_key=api_key, timeout=timeout)
+    return OpenAI(api_key=api_key, timeout=OPENAI_TIMEOUT_SECONDS)
 
 
 def qdrant_client(
@@ -39,15 +40,14 @@ def qdrant_client(
     load_dotenv(PROJECT_ROOT / ".env")
     resolved_url = url or os.getenv("QDRANT_URL")
     resolved_api_key = api_key or os.getenv("QDRANT_API_KEY") or None
-    timeout = float(os.getenv("QDRANT_TIMEOUT_SECONDS", "10"))
     if resolved_url:
         return QdrantClient(
             url=resolved_url,
             api_key=resolved_api_key,
-            timeout=timeout,
+            timeout=QDRANT_TIMEOUT_SECONDS,
         )
 
-    raw_path_value = path or os.getenv("QDRANT_PATH") or DEFAULT_QDRANT_PATH
+    raw_path_value = path or DEFAULT_EMBEDDED_QDRANT_DIR
     raw_path = Path(raw_path_value)
     if not raw_path.is_absolute():
         raw_path = PROJECT_ROOT / raw_path

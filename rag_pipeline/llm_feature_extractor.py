@@ -10,6 +10,7 @@ from typing import Any
 
 from openai import OpenAI
 
+from rag_pipeline.config import AI_MODELS
 from rag_pipeline.features import (
     BEHAVIOR_CLUSTERS,
     HTML_FEATURES,
@@ -538,7 +539,7 @@ def infer_persona_traits_with_llm(
     persona_text: str | None,
     section_label: str,
     client: OpenAI | None = None,
-    model: str = "gpt-5.4-mini",
+    model: str = AI_MODELS.feature_extraction[1],
     max_traits: int = 4,
 ) -> tuple[list[str], dict[str, Any]]:
     client = client or openai_client()
@@ -582,7 +583,7 @@ def infer_behavior_clusters_with_llm(
     events: list[dict[str, Any]],
     section_label: str,
     client: OpenAI | None = None,
-    model: str = "gpt-5.4-mini",
+    model: str = AI_MODELS.feature_extraction[1],
     max_clusters: int = 3,
 ) -> tuple[list[str], dict[str, Any]]:
     client = client or openai_client()
@@ -629,7 +630,7 @@ def infer_html_features_with_llm(
     persona_traits: list[str],
     behavior_clusters: list[str],
     client: OpenAI | None = None,
-    model: str = "gpt-5.4-mini",
+    model: str = AI_MODELS.feature_extraction[1],
     max_features: int = 6,
 ) -> tuple[list[str], dict[str, Any]]:
     client = client or openai_client()
@@ -674,7 +675,7 @@ def infer_structured_features_with_llm(
     behavior_clusters_override: list[str] | None = None,
     html_features_override: list[str] | None = None,
     client: OpenAI | None = None,
-    model: str = "gpt-5.4-mini",
+    model: str = AI_MODELS.feature_extraction[1],
     max_traits: int = 4,
     max_clusters: int = 3,
     max_features: int = 6,
@@ -736,7 +737,7 @@ def extract_features_with_llm_html(
     behavior_clusters_override: list[str] | None = None,
     html_features_override: list[str] | None = None,
     client: OpenAI | None = None,
-    model: str = "gpt-5.4-mini",
+    model: str = AI_MODELS.feature_extraction[1],
     max_features: int = 6,
 ) -> ExtractedFeatures:
     base_features = extract_features(

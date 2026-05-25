@@ -7,10 +7,10 @@ Problem RAG -> Revision RAG -> recommendation generation.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from rag_pipeline.behavior_normalizer import normalize_visitor_behavior_data
+from rag_pipeline.config import AI_MODELS
 from rag_pipeline.features import ExtractedFeatures
 from rag_pipeline.intervention_retriever import InterventionRetriever
 from rag_pipeline.llm_feature_extractor import extract_features_with_llm_html
@@ -19,21 +19,18 @@ from rag_pipeline.recommendation_generator import generate_recommendation
 from rag_pipeline.retrieval_utils import openai_client, qdrant_client
 
 
-def env_bool(name: str, default: bool = False) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        return default
+PROBLEM_COLLECTION_NAME = "problem_patterns_en"
+REVISION_COLLECTION_NAME = "intervention_evidence_en"
+PROBLEM_TOP_K = 5
+SELECTED_PROBLEM_TOP_K = 3
+PROBLEM_CANDIDATE_K = 200
+REVISION_TOP_K = 5
+REVISION_CANDIDATE_K = 200
+RECOMMENDATION_TOP_N = 3
+MAX_LLM_HTML_FEATURES = 6
+USE_PROBLEM_SECTION_FILTER = False
+USE_REVISION_PROBLEM_FILTER = False
+USE_REVISION_SECTION_FILTER = False
 
 
 def compact_problem(result: ProblemSearchResult, language: str = "en") -> dict[str, Any]:
@@ -102,13 +99,6 @@ def dedupe_problems(problems: list[ProblemSearchResult]) -> list[ProblemSearchRe
     return selected
 
 
-def normalize_provider(value: str | None) -> str:
-    provider = (value or "openai").strip().lower()
-    if provider in {"openai", "groq", "ollama"}:
-        return provider
-    return "openai"
-
-
 def run_optimization(
     *,
     section_html: str,
@@ -119,7 +109,8 @@ def run_optimization(
     events = normalize_visitor_behavior_data(visitor_behavior_data or {})
     shared_openai = openai_client()
     shared_qdrant = qdrant_client()
-    embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    _, embedding_model = AI_MODELS.embedding
+    _, feature_model = AI_MODELS.feature_extraction
 
     features = extract_features_with_llm_html(
         html=section_html,
@@ -127,26 +118,26 @@ def run_optimization(
         persona_text=persona,
         behavior_events=events,
         client=shared_openai,
-        model=os.getenv("OPENAI_FEATURE_MODEL") or os.getenv("LLM_FEATURE_MODEL") or "gpt-5.4-mini",
-        max_features=env_int("MAX_LLM_HTML_FEATURES", 6),
+        model=feature_model,
+        max_features=MAX_LLM_HTML_FEATURES,
     )
 
     problem_retriever = ProblemRetriever(
-        collection_name=os.getenv("QDRANT_PROBLEM_COLLECTION", "problem_patterns_en"),
+        collection_name=PROBLEM_COLLECTION_NAME,
         embedding_model=embedding_model,
         qdrant=shared_qdrant,
         openai=shared_openai,
     )
     problems = problem_retriever.search(
         features,
-        top_k=env_int("PROBLEM_TOP_K", 5),
-        candidate_k=env_int("PROBLEM_CANDIDATE_K", 200),
-        use_section_filter=env_bool("USE_PROBLEM_SECTION_FILTER", False),
+        top_k=PROBLEM_TOP_K,
+        candidate_k=PROBLEM_CANDIDATE_K,
+        use_section_filter=USE_PROBLEM_SECTION_FILTER,
     )
-    selected_problems = dedupe_problems(problems)[: env_int("SELECTED_PROBLEM_TOP_K", 3)]
+    selected_problems = dedupe_problems(problems)[:SELECTED_PROBLEM_TOP_K]
 
     intervention_retriever = InterventionRetriever(
-        collection_name=os.getenv("QDRANT_REVISION_COLLECTION", "intervention_evidence_en"),
+        collection_name=REVISION_COLLECTION_NAME,
         embedding_model=embedding_model,
         qdrant=shared_qdrant,
         openai=shared_openai,
@@ -158,10 +149,10 @@ def run_optimization(
         interventions = intervention_retriever.search_for_problem(
             problem,
             features,
-            top_k=env_int("REVISION_TOP_K", 5),
-            candidate_k=env_int("REVISION_CANDIDATE_K", 200),
-            use_problem_case_filter=env_bool("USE_REVISION_PROBLEM_FILTER", False),
-            use_section_filter=env_bool("USE_REVISION_SECTION_FILTER", False),
+            top_k=REVISION_TOP_K,
+            candidate_k=REVISION_CANDIDATE_K,
+            use_problem_case_filter=USE_REVISION_PROBLEM_FILTER,
+            use_section_filter=USE_REVISION_SECTION_FILTER,
             diversify_by_intervention=True,
         )
         compacted = [compact_intervention(result, "en") for result in interventions]
@@ -189,14 +180,12 @@ def run_optimization(
         interventions_by_problem=interventions_by_problem,
         flat_interventions=flat_interventions,
     )
+    _, recommendation_model = AI_MODELS.recommendation
     recommendation = generate_recommendation(
         retrieval=retrieval,
         section_html=section_html,
-        top_n=env_int("RECOMMENDATION_TOP_N", 3),
-        mode=os.getenv("RECOMMENDATION_GENERATION_MODE", "llm"),
-        provider=normalize_provider(os.getenv("RECOMMENDATION_PROVIDER") or os.getenv("LLM_PROVIDER")),
-        model=os.getenv("OPENAI_RECOMMENDATION_MODEL") or os.getenv("LLM_MODEL"),
-        base_url=os.getenv("LLM_BASE_URL"),
+        top_n=RECOMMENDATION_TOP_N,
+        model=recommendation_model,
     )
     return {
         "retrieval": retrieval,
@@ -231,17 +220,17 @@ def build_retrieval_payload(
             "extraction_notes": features.extraction_notes,
         },
         "problem_retrieval": {
-            "collection": os.getenv("QDRANT_PROBLEM_COLLECTION", "problem_patterns_en"),
-            "candidate_k": env_int("PROBLEM_CANDIDATE_K", 200),
+            "collection": PROBLEM_COLLECTION_NAME,
+            "candidate_k": PROBLEM_CANDIDATE_K,
             "results": [compact_problem(result, "en") for result in problems],
             "selected_for_intervention": [
                 compact_problem(result, "en") for result in selected_problems
             ],
         },
         "intervention_retrieval": {
-            "collection": os.getenv("QDRANT_REVISION_COLLECTION", "intervention_evidence_en"),
-            "candidate_k": env_int("REVISION_CANDIDATE_K", 200),
+            "collection": REVISION_COLLECTION_NAME,
+            "candidate_k": REVISION_CANDIDATE_K,
             "by_problem": interventions_by_problem,
-            "deduped_top_interventions": flat_interventions[: env_int("REVISION_TOP_K", 5)],
+            "deduped_top_interventions": flat_interventions[:REVISION_TOP_K],
         },
     }

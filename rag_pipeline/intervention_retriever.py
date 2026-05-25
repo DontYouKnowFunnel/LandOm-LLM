@@ -8,10 +8,11 @@ from typing import Any
 
 from qdrant_client import QdrantClient, models
 
+from rag_pipeline.config import AI_MODELS
 from rag_pipeline.features import ExtractedFeatures, label_en, labels_with_descriptions_en
 from rag_pipeline.problem_retriever import ProblemSearchResult
 from rag_pipeline.retrieval_utils import (
-    DEFAULT_QDRANT_PATH,
+    DEFAULT_EMBEDDED_QDRANT_DIR,
     confidence_bonus,
     embed_query,
     openai_client,
@@ -147,9 +148,9 @@ class InterventionRetriever:
     def __init__(
         self,
         *,
-        qdrant_path: Path | None = DEFAULT_QDRANT_PATH,
+        qdrant_path: Path | None = DEFAULT_EMBEDDED_QDRANT_DIR,
         collection_name: str = "intervention_evidence_en",
-        embedding_model: str = "text-embedding-3-small",
+        embedding_model: str = AI_MODELS.embedding[1],
         weights: dict[str, float] | None = None,
         qdrant: QdrantClient | None = None,
         openai: Any | None = None,
