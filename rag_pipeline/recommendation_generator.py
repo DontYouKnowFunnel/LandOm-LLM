@@ -163,15 +163,20 @@ def pick_primary_problem(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def pick_interventions(payload: dict[str, Any], limit: int) -> list[dict[str, Any]]:
-    items = payload.get("intervention_retrieval", {}).get("deduped_top_interventions") or []
+    intervention_retrieval = payload.get("intervention_retrieval", {})
+    items = (
+        intervention_retrieval.get("selected_interventions")
+        or intervention_retrieval.get("deduped_top_interventions")
+        or []
+    )
     selected: list[dict[str, Any]] = []
-    seen_interventions: set[str] = set()
+    seen_problem_cases: set[str] = set()
     for item in items:
-        intervention = str(item.get("intervention") or "")
-        if intervention and intervention in seen_interventions:
+        problem_case = str(item.get("problem_case") or "")
+        if problem_case and problem_case in seen_problem_cases:
             continue
-        if intervention:
-            seen_interventions.add(intervention)
+        if problem_case:
+            seen_problem_cases.add(problem_case)
         selected.append(item)
         if len(selected) >= limit:
             break
@@ -216,6 +221,43 @@ def compact_generation_context(
     persona_traits = features.get("persona_traits", [])
     behavior_clusters = features.get("behavior_clusters", [])
     html_features = features.get("html_features", [])
+    problem_lookup: dict[str, dict[str, Any]] = {}
+    problem_retrieval = retrieval.get("problem_retrieval", {})
+    for problem in (
+        problem_retrieval.get("selected_for_intervention", [])
+        + problem_retrieval.get("results", [])
+    ):
+        problem_case = str(problem.get("problem_case") or "")
+        if problem_case and problem_case not in problem_lookup:
+            problem_lookup[problem_case] = problem
+    for group in retrieval.get("intervention_retrieval", {}).get("by_problem", []):
+        problem = group.get("problem") or {}
+        problem_case = str(problem.get("problem_case") or "")
+        if problem_case and problem_case not in problem_lookup:
+            problem_lookup[problem_case] = problem
+
+    candidate_interventions = []
+    for item in interventions:
+        problem_case = str(item.get("problem_case") or "")
+        matched_problem = problem_lookup.get(problem_case, {})
+        candidate_interventions.append(
+            {
+                "intervention_title_ko": label_ko(item.get("intervention", "")),
+                "problem_name_ko": label_ko(problem_case),
+                "problem_description": matched_problem.get("problem_description")
+                or primary_problem.get("problem_description"),
+                "problem_barrier": matched_problem.get("barrier") or primary_problem.get("barrier"),
+                "problem_supporting_context": matched_problem.get("llm_context"),
+                "intervention_description": item.get("intervention_description"),
+                "mechanism": item.get("mechanism"),
+                "expected_effect_direction": item.get("expected_effect_direction", {}),
+                "risk": item.get("risk"),
+                "evidence_summary": item.get("evidence_summary"),
+                "final_score": item.get("final_score"),
+                "source_observed_pattern": item.get("source_reference", {}).get("observed_pattern_original"),
+            }
+        )
+
     return {
         "input": retrieval.get("input", {}),
         "section_label": features.get("section_label") or retrieval.get("input", {}).get("section_label"),
@@ -234,20 +276,7 @@ def compact_generation_context(
             "llm_context": primary_problem.get("llm_context"),
             "source_observed_pattern": primary_problem.get("source_reference", {}).get("observed_pattern_original"),
         },
-        "candidate_interventions": [
-            {
-                "intervention_title_ko": label_ko(item.get("intervention", "")),
-                "problem_name_ko": label_ko(item.get("problem_case", "")),
-                "intervention_description": item.get("intervention_description"),
-                "mechanism": item.get("mechanism"),
-                "expected_effect_direction": item.get("expected_effect_direction", {}),
-                "risk": item.get("risk"),
-                "evidence_summary": item.get("evidence_summary"),
-                "final_score": item.get("final_score"),
-                "source_observed_pattern": item.get("source_reference", {}).get("observed_pattern_original"),
-            }
-            for item in interventions
-        ],
+        "candidate_interventions": candidate_interventions,
         "taxonomy_meanings_for_reasoning_only": selected_taxonomy_meanings(
             persona_traits=persona_traits,
             behavior_clusters=behavior_clusters,
@@ -307,11 +336,12 @@ Rules:
 - The input unit is one funnel-stage section HTML fragment, not the entire page.
 - Ground every recommendation in the provided Problem Pattern and Intervention Evidence.
 - Use the structure-preserved HTML in the context as the current section source. Reflect observable hierarchy, repeated blocks, CTA placement, media/form/action elements, class/id hints, and inline layout/style hints when making recommendations.
-- When specifying target_area or implementation_hint, refer to actual editable areas visible in the current section structure. Do not invent current elements that are not present.
+- For each recommendation, clearly state the current problem it addresses in the "problem" field.
+- When writing implementation_direction, refer to actual editable areas visible in the current section structure. Do not invent current elements that are not present.
 - Do not claim proven conversion lift. Say "expected direction" or "plausible effect".
 - Be concrete enough that a designer, marketer, or frontend engineer can revise the section.
 - Do not output code. The goal is improvement recommendations, not HTML generation.
-- For each recommendation, specify the section area to edit, the scope of the change, and a practical implementation hint.
+- For each recommendation, provide concrete changes, implementation direction, copy direction, layout direction, expected behavior change, and caveat.
 - The recommendations array may contain 1 to {max_recommendation_count} items. Include only recommendations that are meaningfully distinct and actionable.
 - If multiple candidate interventions point to different useful edits, return them as separate recommendations instead of collapsing everything into one broad recommendation.
 - Do not force weak or repetitive recommendations just to fill the maximum count.
@@ -340,18 +370,12 @@ Required JSON schema:
     {{
       "rank": 1,
       "title": "...",
-      "target_area": "headline|subcopy|primary_cta|cta_support_copy|trust_or_proof_area|form_area|section_layout",
-      "change_scope": "copy_only|copy_and_small_structure|add_supporting_element|reorder_existing_elements",
+      "problem": "current landing-page problem addressed by this recommendation",
       "what_to_change": ["..."],
-      "implementation_hint": ["concrete non-code edit instruction"],
-      "copy_direction": {{
-        "headline": "...",
-        "subcopy": "...",
-        "cta": "..."
-      }},
-      "layout_direction": ["..."],
-      "expected_behavior_change": ["..."],
-      "evidence_basis": "...",
+      "implementation_direction": "concrete non-code edit direction",
+      "copy_direction": ["headline or main copy direction", "supporting copy direction", "CTA copy direction"],
+      "layout_direction": "layout direction",
+      "expected_behavior_change": "expected direction of visitor behavior change",
       "risk_or_caveat": "..."
     }}
   ],
@@ -487,6 +511,7 @@ def sanitize_public_text(text: str) -> str:
         sanitized = sanitized.replace(raw, replacement)
     non_korean_replacements = {
         "अस्पष्ट": "불명확",
+        "отдель개": "개별",
     }
     for raw, replacement in non_korean_replacements.items():
         sanitized = sanitized.replace(raw, replacement)
@@ -522,6 +547,10 @@ def direction_from_expected_effect(effect: dict[str, str]) -> list[str]:
     return directions or ["해당 퍼널 단계에서 이탈 가능성 감소"]
 
 
+def join_directions(values: list[str]) -> str:
+    return ", ".join(value.rstrip(".") for value in values if value).strip() + "."
+
+
 def generate_template(context: dict[str, Any]) -> dict[str, Any]:
     problem = context["primary_problem"]
     interventions = context["candidate_interventions"][:3]
@@ -545,23 +574,26 @@ def generate_template(context: dict[str, Any]) -> dict[str, Any]:
             {
                 "rank": index,
                 "title": title,
+                "problem": item.get("problem_description")
+                or problem.get("problem_description")
+                or f"{problem_name} 문제가 의심됩니다.",
                 "what_to_change": [
                     f"{section} 섹션의 핵심 문구를 '{problem_name}' 장벽을 낮추는 방향으로 수정합니다.",
                     f"검색된 개입 원리인 '{title}'에 맞춰 현재 섹션의 메시지와 행동 유도를 조정합니다.",
                 ],
-                "copy_direction": {
-                    "headline": "기능명보다 사용자가 얻는 결과와 상황을 먼저 드러내는 문장으로 바꿉니다.",
-                    "subcopy": "누구에게 어떤 문제가 줄어드는지, 왜 지금 이 섹션에서 계속 읽어야 하는지를 짧게 보강합니다.",
-                    "cta": "클릭 후 얻게 되는 결과나 다음 단계를 CTA 문구에 반영합니다.",
-                },
-                "layout_direction": [
-                    "핵심 가치 문구, 보조 근거, CTA가 한 화면 안에서 함께 보이도록 배치합니다.",
-                    "근거가 되는 proof나 예시가 있다면 CTA 전후에 가깝게 둡니다.",
-                ],
-                "expected_behavior_change": direction_from_expected_effect(
-                    item.get("expected_effect_direction", {})
+                "implementation_direction": (
+                    "현재 섹션에서 사용자가 먼저 보는 문구와 행동 경로를 기준으로 수정합니다. "
+                    "핵심 가치, 보조 근거, CTA가 한 화면 안에서 함께 읽히도록 작은 구조 변경을 우선 적용합니다."
                 ),
-                "evidence_basis": "검색된 긍정 패턴은 사용자 결과를 먼저 이해시키고, 근거와 행동 경로를 가까이 배치하는 방향의 개입을 지지합니다.",
+                "copy_direction": [
+                    "기능명보다 사용자가 얻는 결과와 상황을 먼저 드러내는 문장으로 바꿉니다.",
+                    "누구에게 어떤 문제가 줄어드는지, 왜 지금 이 섹션에서 계속 읽어야 하는지를 짧게 보강합니다.",
+                    "클릭 후 얻게 되는 결과나 다음 단계를 CTA 문구에 반영합니다.",
+                ],
+                "layout_direction": "핵심 가치 문구, 보조 근거, CTA가 한 화면 안에서 함께 보이도록 배치합니다.",
+                "expected_behavior_change": join_directions(
+                    direction_from_expected_effect(item.get("expected_effect_direction", {}))
+                ),
                 "risk_or_caveat": "페르소나의 실제 의도와 맞지 않으면 메시지가 일반적인 마케팅 문구처럼 보일 수 있습니다.",
             }
         )
@@ -645,19 +677,35 @@ def render_markdown(result: dict[str, Any], context: dict[str, Any]) -> str:
     lines.extend(["", "## Recommendations", ""])
     for item in result.get("recommendations", []):
         lines.append(f"### {item.get('rank')}. {item.get('title')}")
+        if item.get("problem"):
+            lines.append(f"- problem: {item['problem']}")
         for change in item.get("what_to_change", []):
             lines.append(f"- change: {change}")
-        copy_direction = item.get("copy_direction", {})
+        if item.get("implementation_direction"):
+            lines.append(f"- implementation_direction: {item['implementation_direction']}")
+        copy_direction = item.get("copy_direction", [])
         if copy_direction:
-            lines.append(f"- headline: {copy_direction.get('headline', '')}")
-            lines.append(f"- subcopy: {copy_direction.get('subcopy', '')}")
-            lines.append(f"- cta: {copy_direction.get('cta', '')}")
-        for layout in item.get("layout_direction", []):
-            lines.append(f"- layout: {layout}")
-        for effect in item.get("expected_behavior_change", []):
-            lines.append(f"- expected_behavior_change: {effect}")
-        if item.get("evidence_basis"):
-            lines.append(f"- evidence_basis: {item['evidence_basis']}")
+            if isinstance(copy_direction, dict):
+                for label, value in copy_direction.items():
+                    lines.append(f"- copy_direction_{label}: {value}")
+            else:
+                lines.append("- copy_direction:")
+                for value in copy_direction:
+                    lines.append(f"  - {value}")
+        layout_direction = item.get("layout_direction")
+        if layout_direction:
+            if isinstance(layout_direction, list):
+                for layout in layout_direction:
+                    lines.append(f"- layout_direction: {layout}")
+            else:
+                lines.append(f"- layout_direction: {layout_direction}")
+        expected_behavior_change = item.get("expected_behavior_change")
+        if expected_behavior_change:
+            if isinstance(expected_behavior_change, list):
+                for effect in expected_behavior_change:
+                    lines.append(f"- expected_behavior_change: {effect}")
+            else:
+                lines.append(f"- expected_behavior_change: {expected_behavior_change}")
         if item.get("risk_or_caveat"):
             lines.append(f"- risk_or_caveat: {item['risk_or_caveat']}")
         lines.append("")

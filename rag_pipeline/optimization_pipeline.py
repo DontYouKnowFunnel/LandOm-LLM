@@ -19,6 +19,10 @@ from rag_pipeline.recommendation_generator import generate_recommendation
 from rag_pipeline.retrieval_utils import openai_client, qdrant_client
 
 
+MIN_PROBLEM_FINAL_SCORE = 0.75
+MIN_REVISION_FINAL_SCORE = 0.75
+
+
 def env_bool(name: str, default: bool = False) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -102,6 +106,42 @@ def dedupe_problems(problems: list[ProblemSearchResult]) -> list[ProblemSearchRe
     return selected
 
 
+def select_top_intervention_per_problem(
+    interventions_by_problem: list[dict[str, Any]],
+    *,
+    max_items: int,
+    min_problem_score: float = MIN_PROBLEM_FINAL_SCORE,
+    min_revision_score: float = MIN_REVISION_FINAL_SCORE,
+) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    fallback: dict[str, Any] | None = None
+    seen_problem_cases: set[str] = set()
+    for group in interventions_by_problem:
+        problem = group.get("problem") or {}
+        problem_case = str(problem.get("problem_case") or "")
+        if not problem_case or problem_case in seen_problem_cases:
+            continue
+        interventions = group.get("interventions") or []
+        top_intervention = interventions[0] if interventions else None
+        if top_intervention is not None and fallback is None:
+            fallback = top_intervention
+        if (
+            float(problem.get("final_score") or 0.0) < min_problem_score
+            or top_intervention is None
+            or float(top_intervention.get("final_score") or 0.0) < min_revision_score
+        ):
+            continue
+
+        for intervention in interventions:
+            selected.append(intervention)
+            seen_problem_cases.add(problem_case)
+            break
+
+        if len(selected) >= max_items:
+            break
+    return selected or ([fallback] if fallback is not None else [])
+
+
 def normalize_provider(value: str | None) -> str:
     provider = (value or "openai").strip().lower()
     if provider in {"openai", "groq", "ollama"}:
@@ -152,8 +192,6 @@ def run_optimization(
         openai=shared_openai,
     )
     interventions_by_problem = []
-    flat_interventions = []
-    seen_interventions: set[tuple[str, str]] = set()
     for problem in selected_problems:
         interventions = intervention_retriever.search_for_problem(
             problem,
@@ -171,14 +209,11 @@ def run_optimization(
                 "interventions": compacted,
             }
         )
-        for item in compacted:
-            key = (str(item.get("problem_case")), str(item.get("intervention")))
-            if key in seen_interventions:
-                continue
-            seen_interventions.add(key)
-            flat_interventions.append(item)
 
-    flat_interventions.sort(key=lambda item: item["final_score"], reverse=True)
+    selected_interventions = select_top_intervention_per_problem(
+        interventions_by_problem,
+        max_items=env_int("RECOMMENDATION_TOP_N", 3),
+    )
     retrieval = build_retrieval_payload(
         section_name=section_name,
         persona=persona,
@@ -187,7 +222,7 @@ def run_optimization(
         problems=problems,
         selected_problems=selected_problems,
         interventions_by_problem=interventions_by_problem,
-        flat_interventions=flat_interventions,
+        selected_interventions=selected_interventions,
     )
     recommendation = generate_recommendation(
         retrieval=retrieval,
@@ -213,7 +248,7 @@ def build_retrieval_payload(
     problems: list[ProblemSearchResult],
     selected_problems: list[ProblemSearchResult],
     interventions_by_problem: list[dict[str, Any]],
-    flat_interventions: list[dict[str, Any]],
+    selected_interventions: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "input": {
@@ -242,6 +277,14 @@ def build_retrieval_payload(
             "collection": os.getenv("QDRANT_REVISION_COLLECTION", "intervention_evidence_en"),
             "candidate_k": env_int("REVISION_CANDIDATE_K", 200),
             "by_problem": interventions_by_problem,
-            "deduped_top_interventions": flat_interventions[: env_int("REVISION_TOP_K", 5)],
+            "selected_interventions": selected_interventions,
+            "deduped_top_interventions": selected_interventions,
+            "selection_policy": {
+                "mode": "top_1_intervention_per_problem",
+                "max_items": env_int("RECOMMENDATION_TOP_N", 3),
+                "min_problem_score": MIN_PROBLEM_FINAL_SCORE,
+                "min_revision_score": MIN_REVISION_FINAL_SCORE,
+                "fallback": "return_top_scored_intervention_when_all_candidates_are_filtered",
+            },
         },
     }
