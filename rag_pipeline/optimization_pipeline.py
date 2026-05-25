@@ -31,6 +31,8 @@ MAX_LLM_HTML_FEATURES = 6
 USE_PROBLEM_SECTION_FILTER = False
 USE_REVISION_PROBLEM_FILTER = False
 USE_REVISION_SECTION_FILTER = False
+MIN_PROBLEM_FINAL_SCORE = 0.75
+MIN_REVISION_FINAL_SCORE = 0.75
 
 
 def compact_problem(result: ProblemSearchResult, language: str = "en") -> dict[str, Any]:
@@ -143,8 +145,6 @@ def run_optimization(
         openai=shared_openai,
     )
     interventions_by_problem = []
-    flat_interventions = []
-    seen_interventions: set[tuple[str, str]] = set()
     for problem in selected_problems:
         interventions = intervention_retriever.search_for_problem(
             problem,
@@ -162,14 +162,11 @@ def run_optimization(
                 "interventions": compacted,
             }
         )
-        for item in compacted:
-            key = (str(item.get("problem_case")), str(item.get("intervention")))
-            if key in seen_interventions:
-                continue
-            seen_interventions.add(key)
-            flat_interventions.append(item)
 
-    flat_interventions.sort(key=lambda item: item["final_score"], reverse=True)
+    selected_interventions = select_top_intervention_per_problem(
+        interventions_by_problem,
+        max_items=RECOMMENDATION_TOP_N,
+    )
     retrieval = build_retrieval_payload(
         section_name=section_name,
         persona=persona,
@@ -178,7 +175,7 @@ def run_optimization(
         problems=problems,
         selected_problems=selected_problems,
         interventions_by_problem=interventions_by_problem,
-        flat_interventions=flat_interventions,
+        selected_interventions=selected_interventions,
     )
     _, recommendation_model = AI_MODELS.recommendation
     recommendation = generate_recommendation(
@@ -202,7 +199,7 @@ def build_retrieval_payload(
     problems: list[ProblemSearchResult],
     selected_problems: list[ProblemSearchResult],
     interventions_by_problem: list[dict[str, Any]],
-    flat_interventions: list[dict[str, Any]],
+    selected_interventions: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "input": {
@@ -231,6 +228,14 @@ def build_retrieval_payload(
             "collection": REVISION_COLLECTION_NAME,
             "candidate_k": REVISION_CANDIDATE_K,
             "by_problem": interventions_by_problem,
-            "deduped_top_interventions": flat_interventions[:REVISION_TOP_K],
+            "selected_interventions": selected_interventions,
+            "deduped_top_interventions": selected_interventions,
+            "selection_policy": {
+                "mode": "top_1_intervention_per_problem",
+                "max_items": RECOMMENDATION_TOP_N,
+                "min_problem_score": MIN_PROBLEM_FINAL_SCORE,
+                "min_revision_score": MIN_REVISION_FINAL_SCORE,
+                "fallback": "return_top_scored_intervention_when_all_candidates_are_filtered",
+            },
         },
     }
