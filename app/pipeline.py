@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import funnel_pipeline.run_funnel_langgraph as _funnel_flow
+from funnel_pipeline.config import AI_MODELS
 from html_tools.selector_lookup import map_funnel_items_to_selectors
 from html_tools.spec import CompressionSpec
 
@@ -19,15 +19,13 @@ def run(
     html: str,
     provider: str | None = None,
     model: str | None = None,
-    base_url: str | None = None,
 ) -> list[dict[str, Any]]:
     workflow = _funnel_flow.build_graph()
     result = workflow.invoke(
         {
             "input_html": html,
-            "provider": provider or os.getenv("LLM_PROVIDER", "openai"),
-            "model": model or os.getenv("LLM_MODEL"),
-            "base_url": base_url or os.getenv("LLM_BASE_URL"),
+            "provider": provider or AI_MODELS.funnel_analysis[0],
+            "model": model,
         }
     )
     funnel_items = json.loads(result["funnel_json_text"])

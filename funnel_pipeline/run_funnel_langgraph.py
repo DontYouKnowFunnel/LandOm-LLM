@@ -14,6 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from funnel_pipeline.config import AI_MODELS
 from html_tools.segments import extract_page_segments, segments_to_prompt_input
 from html_tools.spec import CompressionSpec
 from html_tools.transform import extract_body_html
@@ -30,8 +31,7 @@ class FunnelState(TypedDict, total=False):
     prompt_input: str
     prompt: str
     provider: str
-    model: str
-    base_url: str
+    model: str | None
     llm_raw_output: str
     funnel_json_text: str
 
@@ -65,34 +65,36 @@ def compose_prompt_node(state: FunnelState) -> FunnelState:
     return {"prompt": prompt}
 
 
-def resolve_client_config(state: FunnelState) -> tuple[str, str, str | None]:
-    provider = state["provider"]
+def configured_model_for_provider(provider: str) -> str:
+    if provider == AI_MODELS.funnel_analysis[0]:
+        return AI_MODELS.funnel_analysis[1]
+    raise RuntimeError(f"No configured model for provider: {provider}")
+
+
+def resolve_client_config(state: FunnelState) -> tuple[str, str]:
+    provider = state.get("provider") or AI_MODELS.funnel_analysis[0]
 
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY is not set. Add it to your .env file.")
-        default_model = "gpt-5.4-mini"
-        default_base_url = os.getenv("OPENAI_BASE_URL")
     elif provider == "groq":
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise RuntimeError("GROQ_API_KEY is not set. Add it to your .env file.")
-        default_model = "meta-llama/llama-4-scout-17b-16e-instruct"
-        default_base_url = "https://api.groq.com/openai/v1"
     else:
         raise RuntimeError(f"Unsupported provider: {provider}")
 
-    model = state.get("model") or default_model
-    base_url = state.get("base_url") or default_base_url
-    return api_key, model, base_url
+    model = state.get("model") or configured_model_for_provider(provider)
+    return api_key, model
 
 
 def call_llm_node(state: FunnelState) -> FunnelState:
-    api_key, model, base_url = resolve_client_config(state)
+    provider = state.get("provider") or AI_MODELS.funnel_analysis[0]
+    api_key, model = resolve_client_config(state)
     client_kwargs = {"api_key": api_key}
-    if base_url:
-        client_kwargs["base_url"] = base_url
+    if provider == "groq":
+        client_kwargs["base_url"] = "https://api.groq.com/openai/v1"
 
     client = OpenAI(**client_kwargs)
     request_kwargs = {
@@ -101,7 +103,7 @@ def call_llm_node(state: FunnelState) -> FunnelState:
             {"role": "user", "content": state["prompt"]},
         ],
     }
-    if state["provider"] == "openai":
+    if provider == "openai":
         request_kwargs["reasoning_effort"] = "medium"
 
     response = client.chat.completions.create(**request_kwargs)
@@ -278,18 +280,13 @@ def parse_args():
     parser.add_argument(
         "--provider",
         choices=("openai", "groq"),
-        default=os.getenv("LLM_PROVIDER", "openai"),
+        default=AI_MODELS.funnel_analysis[0],
         help="LLM provider to call",
     )
     parser.add_argument(
         "--model",
-        default=os.getenv("LLM_MODEL"),
+        default=None,
         help="Model name override for the selected provider",
-    )
-    parser.add_argument(
-        "--base-url",
-        default=os.getenv("LLM_BASE_URL"),
-        help="Optional OpenAI-compatible API base URL override",
     )
     return parser.parse_args()
 
@@ -306,7 +303,6 @@ def main():
             "input_html": input_html,
             "provider": args.provider,
             "model": args.model,
-            "base_url": args.base_url,
         }
     )
 

@@ -36,19 +36,19 @@ class OptimizationRequest(BaseModel):
 
 @app.post("/api/v1/funnels/analyze", status_code=status.HTTP_202_ACCEPTED)
 def analyze(req: AnalyzeRequest, background_tasks: BackgroundTasks) -> None:
-    base_url = os.getenv("BACKEND_BASE_URL")
-    if not base_url:
+    callback_origin = os.getenv("BACKEND_BASE_URL")
+    if not callback_origin:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="BACKEND_BASE_URL is not configured",
         )
-    background_tasks.add_task(_process_and_callback, req.projectId, req.html, base_url)
+    background_tasks.add_task(_process_and_callback, req.projectId, req.html, callback_origin)
 
 
 @app.post("/api/v1/funnels/optimize", status_code=status.HTTP_202_ACCEPTED)
 def optimize(req: OptimizationRequest, background_tasks: BackgroundTasks) -> None:
-    base_url = os.getenv("BACKEND_BASE_URL")
-    if not base_url:
+    callback_origin = os.getenv("BACKEND_BASE_URL")
+    if not callback_origin:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="BACKEND_BASE_URL is not configured",
@@ -67,10 +67,10 @@ def optimize(req: OptimizationRequest, background_tasks: BackgroundTasks) -> Non
         req.visitorBehaviorData,
     )
 
-    background_tasks.add_task(_process_optimization_and_callback, req, base_url)
+    background_tasks.add_task(_process_optimization_and_callback, req, callback_origin)
 
 
-def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
+def _process_and_callback(project_id: int, html: str, callback_origin: str) -> None:
     try:
         items = run_pipeline(html)
     except Exception:
@@ -86,7 +86,7 @@ def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
         for idx, item in enumerate(items, start=1)
     ]
     payload: dict[str, Any] = {"funnels": funnels}
-    callback_url = f"{base_url.rstrip('/')}/api/v1/projects/{project_id}/analytics/section"
+    callback_url = f"{callback_origin.rstrip('/')}/api/v1/projects/{project_id}/analytics/section"
 
     try:
         with httpx.Client(timeout=10.0) as client:
@@ -98,7 +98,7 @@ def _process_and_callback(project_id: int, html: str, base_url: str) -> None:
         )
 
 
-def _process_optimization_and_callback(req: OptimizationRequest, base_url: str) -> None:
+def _process_optimization_and_callback(req: OptimizationRequest, callback_origin: str) -> None:
     try:
         result = run_optimization(
             section_html=req.sectionHtml,
@@ -119,7 +119,7 @@ def _process_optimization_and_callback(req: OptimizationRequest, base_url: str) 
         project_id=req.projectId,
         section_id=req.sectionId,
         optimization_plan=optimization_plan,
-        base_url=base_url,
+        callback_origin=callback_origin,
     )
 
 
@@ -128,7 +128,7 @@ def _send_optimization_plan_callback(
     project_id: int,
     section_id: int,
     optimization_plan: str,
-    base_url: str,
+    callback_origin: str,
 ) -> None:
     payload: dict[str, Any] = {
         "projectId": project_id,
@@ -136,7 +136,7 @@ def _send_optimization_plan_callback(
         "optimizationPlan": optimization_plan,
     }
     callback_url = (
-        f"{base_url.rstrip('/')}/api/v1/projects/{project_id}"
+        f"{callback_origin.rstrip('/')}/api/v1/projects/{project_id}"
         f"/optimizations/{section_id}"
     )
 
