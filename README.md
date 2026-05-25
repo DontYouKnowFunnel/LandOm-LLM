@@ -64,11 +64,11 @@ BACKEND_BASE_URL=https://backend.example.com
 ```env
 QDRANT_URL=https://your-qdrant.example.com
 QDRANT_API_KEY=your_qdrant_api_key
-QDRANT_PROBLEM_COLLECTION=problem_patterns_en
-QDRANT_REVISION_COLLECTION=intervention_evidence_en
 ```
 
-`QDRANT_URL`을 비워두면 local embedded Qdrant가 `QDRANT_PATH`를 사용합니다.
+`QDRANT_URL`을 비워두면 local embedded Qdrant가 `runs/qdrant`를 사용합니다.
+런타임 collection 이름은 `problem_patterns_en`, `intervention_evidence_en`으로 고정되어 있습니다.
+RAG 파이프라인 모델 설정은 `rag_pipeline/config.py`의 `AI_MODELS`에서, 퍼널 분석 모델 설정은 `funnel_pipeline/config.py`의 `AI_MODELS`에서 관리합니다.
 
 ## Vector DB 업로드
 
