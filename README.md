@@ -70,6 +70,8 @@ QDRANT_REVISION_COLLECTION=intervention_evidence_en
 
 `QDRANT_URL`을 비워두면 local embedded Qdrant가 `QDRANT_PATH`를 사용합니다.
 
+개선안 생성은 문제 유형별로 가장 높은 점수의 개선 근거 1개만 사용합니다. 내부 점수 기준에 미달하는 후보는 제외하되, 모든 후보가 제외되는 경우에는 가장 높은 점수의 후보 1개를 fallback으로 사용합니다.
+
 ## Vector DB 업로드
 
 ```bash
