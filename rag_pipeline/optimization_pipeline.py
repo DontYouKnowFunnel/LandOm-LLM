@@ -7,6 +7,8 @@ Problem RAG -> Revision RAG -> recommendation generation.
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 from rag_pipeline.behavior_normalizer import normalize_visitor_behavior_data
@@ -33,6 +35,31 @@ USE_REVISION_PROBLEM_FILTER = False
 USE_REVISION_SECTION_FILTER = False
 MIN_PROBLEM_FINAL_SCORE = 0.75
 MIN_REVISION_FINAL_SCORE = 0.75
+logger = logging.getLogger("uvicorn.error")
+
+
+def log_stage(
+    message: str,
+    *,
+    project_id: int | None = None,
+    section_id: int | None = None,
+    section_name: str | None = None,
+    elapsed_seconds: float | None = None,
+    **extra: Any,
+) -> None:
+    parts = [message]
+    if project_id is not None:
+        parts.append(f"projectId={project_id}")
+    if section_id is not None:
+        parts.append(f"sectionId={section_id}")
+    if section_name:
+        parts.append(f"sectionName={section_name}")
+    if elapsed_seconds is not None:
+        parts.append(f"elapsed={elapsed_seconds:.2f}s")
+    for key, value in extra.items():
+        if value is not None:
+            parts.append(f"{key}={value}")
+    logger.info(" ".join(parts))
 
 
 def compact_problem(result: ProblemSearchResult, language: str = "en") -> dict[str, Any]:
@@ -107,13 +134,38 @@ def run_optimization(
     section_name: str,
     persona: str | None,
     visitor_behavior_data: dict[str, Any] | list[dict[str, Any]] | None,
+    project_id: int | None = None,
+    section_id: int | None = None,
 ) -> dict[str, Any]:
+    started_at = time.perf_counter()
+    log_stage(
+        "optimization started",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        html_chars=len(section_html),
+    )
     events = normalize_visitor_behavior_data(visitor_behavior_data or {})
+    log_stage(
+        "behavior normalization completed",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        event_count=len(events),
+    )
     shared_openai = openai_client()
     shared_qdrant = qdrant_client()
     _, embedding_model = AI_MODELS.embedding
     _, feature_model = AI_MODELS.feature_extraction
 
+    feature_started_at = time.perf_counter()
+    log_stage(
+        "feature extraction started",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        model=feature_model,
+    )
     features = extract_features_with_llm_html(
         html=section_html,
         section_label=section_name,
@@ -123,12 +175,31 @@ def run_optimization(
         model=feature_model,
         max_features=MAX_LLM_HTML_FEATURES,
     )
+    log_stage(
+        "feature extraction completed",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        elapsed_seconds=time.perf_counter() - feature_started_at,
+        persona_traits=len(features.persona_traits),
+        behavior_clusters=len(features.behavior_clusters),
+        html_features=len(features.html_features),
+    )
 
     problem_retriever = ProblemRetriever(
         collection_name=PROBLEM_COLLECTION_NAME,
         embedding_model=embedding_model,
         qdrant=shared_qdrant,
         openai=shared_openai,
+    )
+    problem_started_at = time.perf_counter()
+    log_stage(
+        "problem retrieval started",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        collection=PROBLEM_COLLECTION_NAME,
+        candidate_k=PROBLEM_CANDIDATE_K,
     )
     problems = problem_retriever.search(
         features,
@@ -137,6 +208,15 @@ def run_optimization(
         use_section_filter=USE_PROBLEM_SECTION_FILTER,
     )
     selected_problems = dedupe_problems(problems)[:SELECTED_PROBLEM_TOP_K]
+    log_stage(
+        "problem retrieval completed",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        elapsed_seconds=time.perf_counter() - problem_started_at,
+        retrieved=len(problems),
+        selected=len(selected_problems),
+    )
 
     intervention_retriever = InterventionRetriever(
         collection_name=REVISION_COLLECTION_NAME,
@@ -145,6 +225,16 @@ def run_optimization(
         openai=shared_openai,
     )
     interventions_by_problem = []
+    revision_started_at = time.perf_counter()
+    log_stage(
+        "revision retrieval started",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        collection=REVISION_COLLECTION_NAME,
+        problem_count=len(selected_problems),
+        candidate_k=REVISION_CANDIDATE_K,
+    )
     for problem in selected_problems:
         interventions = intervention_retriever.search_for_problem(
             problem,
@@ -167,6 +257,15 @@ def run_optimization(
         interventions_by_problem,
         max_items=RECOMMENDATION_TOP_N,
     )
+    log_stage(
+        "revision retrieval completed",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        elapsed_seconds=time.perf_counter() - revision_started_at,
+        problem_count=len(interventions_by_problem),
+        selected_interventions=len(selected_interventions),
+    )
     retrieval = build_retrieval_payload(
         section_name=section_name,
         persona=persona,
@@ -178,11 +277,35 @@ def run_optimization(
         selected_interventions=selected_interventions,
     )
     _, recommendation_model = AI_MODELS.recommendation
+    recommendation_started_at = time.perf_counter()
+    log_stage(
+        "recommendation generation started",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        model=recommendation_model,
+        max_recommendations=RECOMMENDATION_TOP_N,
+    )
     recommendation = generate_recommendation(
         retrieval=retrieval,
         section_html=section_html,
         top_n=RECOMMENDATION_TOP_N,
         model=recommendation_model,
+    )
+    log_stage(
+        "recommendation generation completed",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        elapsed_seconds=time.perf_counter() - recommendation_started_at,
+        recommendation_count=len(recommendation.get("recommendations", [])),
+    )
+    log_stage(
+        "optimization completed",
+        project_id=project_id,
+        section_id=section_id,
+        section_name=section_name,
+        elapsed_seconds=time.perf_counter() - started_at,
     )
     return {
         "retrieval": retrieval,

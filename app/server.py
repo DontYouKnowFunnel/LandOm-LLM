@@ -105,6 +105,8 @@ def _process_optimization_and_callback(req: OptimizationRequest, callback_origin
             section_name=req.sectionName,
             persona=req.persona,
             visitor_behavior_data=req.visitorBehaviorData,
+            project_id=req.projectId,
+            section_id=req.sectionId,
         )
     except Exception:
         logger.exception(
@@ -141,9 +143,22 @@ def _send_optimization_plan_callback(
     )
 
     try:
+        logger.info(
+            "callback started projectId=%s sectionId=%s url=%s payloadChars=%s",
+            project_id,
+            section_id,
+            callback_url,
+            len(optimization_plan),
+        )
         with httpx.Client(timeout=10.0) as client:
             response = client.patch(callback_url, json=payload)
             response.raise_for_status()
+        logger.info(
+            "callback completed projectId=%s sectionId=%s statusCode=%s",
+            project_id,
+            section_id,
+            response.status_code,
+        )
     except Exception:
         logger.exception(
             "optimization callback PATCH failed url=%s projectId=%s sectionId=%s",

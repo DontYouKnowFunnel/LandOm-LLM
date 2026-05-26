@@ -27,7 +27,7 @@ from rag_pipeline.html_preprocessor import preprocess_html_for_llm
 DEFAULT_RETRIEVAL_JSON = PROJECT_ROOT / "run/rag_retrieval_smoke_override.json"
 DEFAULT_OUTPUT_JSON = PROJECT_ROOT / "run/rag_recommendation.json"
 DEFAULT_OUTPUT_MD = PROJECT_ROOT / "run/rag_recommendation.md"
-OPENAI_TIMEOUT_SECONDS = 90.0
+OPENAI_TIMEOUT_SECONDS = 150.0
 
 
 PERSONA_TRAIT_DESCRIPTIONS_KO = {
