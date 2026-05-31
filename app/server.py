@@ -37,10 +37,9 @@ class OptimizationRequest(BaseModel):
 class CodegenRequest(BaseModel):
     projectId: int = Field(..., gt=0)
     sectionId: int = Field(..., gt=0)
-    optimizationId: int = Field(..., gt=0)
     sectionHtml: str = Field(..., min_length=1)
     sectionCss: str = Field(...)
-    optimizationPlan: dict[str, Any] = Field(...)
+    optimizationPlans: list[dict[str, Any]] = Field(..., min_length=1)
 
     class Config:
         extra = "forbid"
@@ -92,11 +91,11 @@ def codegen(req: CodegenRequest, background_tasks: BackgroundTasks) -> None:
         )
 
     logger.info(
-        "code generation request received projectId=%s sectionId=%s optimizationId=%s "
+        "code generation request received projectId=%s sectionId=%s optimizationCount=%s "
         "sectionHtmlLength=%s sectionHtmlPreview=%r sectionCssLength=%s",
         req.projectId,
         req.sectionId,
-        req.optimizationId,
+        len(req.optimizationPlans),
         len(req.sectionHtml),
         _preview(req.sectionHtml),
         len(req.sectionCss),
@@ -163,7 +162,7 @@ def _process_optimization_and_callback(req: OptimizationRequest, callback_origin
 def _process_codegen_and_callback(req: CodegenRequest, callback_origin: str) -> None:
     try:
         result = generate_codegen(
-            optimization_plan=req.optimizationPlan,
+            optimization_plan=req.optimizationPlans,
             html=req.sectionHtml,
             css=req.sectionCss,
         )
@@ -171,17 +170,15 @@ def _process_codegen_and_callback(req: CodegenRequest, callback_origin: str) -> 
             raise RuntimeError("code generation returned empty html")
     except Exception:
         logger.exception(
-            "code generation failed projectId=%s sectionId=%s optimizationId=%s",
+            "code generation failed projectId=%s sectionId=%s",
             req.projectId,
             req.sectionId,
-            req.optimizationId,
         )
         return
 
     _send_codegen_callback(
         project_id=req.projectId,
         section_id=req.sectionId,
-        optimization_id=req.optimizationId,
         html=result["html"],
         css=result["css"],
         callback_origin=callback_origin,
@@ -196,8 +193,6 @@ def _send_optimization_plan_callback(
     callback_origin: str,
 ) -> None:
     payload: dict[str, Any] = {
-        "projectId": project_id,
-        "sectionId": section_id,
         "recommendations": recommendations,
     }
     callback_url = (
@@ -235,7 +230,6 @@ def _send_codegen_callback(
     *,
     project_id: int,
     section_id: int,
-    optimization_id: int,
     html: str,
     css: str,
     callback_origin: str,
@@ -246,16 +240,15 @@ def _send_codegen_callback(
     }
     callback_url = (
         f"{callback_origin.rstrip('/')}/api/v1/projects/{project_id}"
-        f"/optimizations/{optimization_id}/codegen"
+        f"/optimizations/{section_id}/codegen"
     )
 
     try:
         logger.info(
-            "code generation callback started projectId=%s sectionId=%s optimizationId=%s "
+            "code generation callback started projectId=%s sectionId=%s "
             "url=%s htmlChars=%s cssChars=%s",
             project_id,
             section_id,
-            optimization_id,
             callback_url,
             len(html),
             len(css),
@@ -264,19 +257,17 @@ def _send_codegen_callback(
             response = client.patch(callback_url, json=payload)
             response.raise_for_status()
         logger.info(
-            "code generation callback completed projectId=%s sectionId=%s optimizationId=%s statusCode=%s",
+            "code generation callback completed projectId=%s sectionId=%s statusCode=%s",
             project_id,
             section_id,
-            optimization_id,
             response.status_code,
         )
     except Exception:
         logger.exception(
-            "code generation callback failed url=%s projectId=%s sectionId=%s optimizationId=%s",
+            "code generation callback failed url=%s projectId=%s sectionId=%s",
             callback_url,
             project_id,
             section_id,
-            optimization_id,
         )
 
 

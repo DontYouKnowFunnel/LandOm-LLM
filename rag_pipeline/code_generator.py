@@ -17,8 +17,8 @@ from rag_pipeline.retrieval_utils import OPENAI_TIMEOUT_SECONDS, PROJECT_ROOT
 CODEGEN_SYSTEM_PROMPT = """
 You are a senior frontend engineer specializing in conversion-oriented landing pages.
 
-Your task is to generate improved HTML and CSS by applying the given landing-page
-optimization recommendations to the provided funnel section code.
+Your task is to generate one improved HTML/CSS result by applying the given landing-page
+optimization recommendation or selected recommendation list to the provided funnel section code.
 
 Hard rules:
 - Preserve the existing design system first: typography scale, color palette, spacing rhythm,
@@ -117,7 +117,7 @@ Generate improved replacement HTML and CSS for this funnel section.
 Selection rule:
 {selection_text}
 
-Optimization recommendations JSON:
+Optimization recommendation JSON or selected recommendation list:
 {json.dumps(optimization_plan, ensure_ascii=False, indent=2)}
 
 Existing funnel HTML:
