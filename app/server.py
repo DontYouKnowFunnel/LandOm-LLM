@@ -37,6 +37,7 @@ class OptimizationRequest(BaseModel):
 class CodegenRequest(BaseModel):
     projectId: int = Field(..., gt=0)
     sectionId: int = Field(..., gt=0)
+    optimizationId: int = Field(..., gt=0)
     sectionHtml: str = Field(..., min_length=1)
     sectionCss: str = Field(...)
     optimizationPlan: dict[str, Any] = Field(...)
@@ -91,10 +92,11 @@ def codegen(req: CodegenRequest, background_tasks: BackgroundTasks) -> None:
         )
 
     logger.info(
-        "code generation request received projectId=%s sectionId=%s "
+        "code generation request received projectId=%s sectionId=%s optimizationId=%s "
         "sectionHtmlLength=%s sectionHtmlPreview=%r sectionCssLength=%s",
         req.projectId,
         req.sectionId,
+        req.optimizationId,
         len(req.sectionHtml),
         _preview(req.sectionHtml),
         len(req.sectionCss),
@@ -169,15 +171,17 @@ def _process_codegen_and_callback(req: CodegenRequest, callback_origin: str) -> 
             raise RuntimeError("code generation returned empty html")
     except Exception:
         logger.exception(
-            "code generation failed projectId=%s sectionId=%s",
+            "code generation failed projectId=%s sectionId=%s optimizationId=%s",
             req.projectId,
             req.sectionId,
+            req.optimizationId,
         )
         return
 
     _send_codegen_callback(
         project_id=req.projectId,
         section_id=req.sectionId,
+        optimization_id=req.optimizationId,
         html=result["html"],
         css=result["css"],
         callback_origin=callback_origin,
@@ -231,6 +235,7 @@ def _send_codegen_callback(
     *,
     project_id: int,
     section_id: int,
+    optimization_id: int,
     html: str,
     css: str,
     callback_origin: str,
@@ -241,36 +246,37 @@ def _send_codegen_callback(
     }
     callback_url = (
         f"{callback_origin.rstrip('/')}/api/v1/projects/{project_id}"
-        f"/codegeneration/{section_id}"
+        f"/optimizations/{optimization_id}/codegen"
     )
 
     try:
         logger.info(
-            "code generation callback started projectId=%s sectionId=%s "
+            "code generation callback started projectId=%s sectionId=%s optimizationId=%s "
             "url=%s htmlChars=%s cssChars=%s",
             project_id,
             section_id,
+            optimization_id,
             callback_url,
             len(html),
             len(css),
         )
         with httpx.Client(timeout=10.0) as client:
             response = client.patch(callback_url, json=payload)
-            if response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED:
-                response = client.post(callback_url, json=payload)
             response.raise_for_status()
         logger.info(
-            "code generation callback completed projectId=%s sectionId=%s statusCode=%s",
+            "code generation callback completed projectId=%s sectionId=%s optimizationId=%s statusCode=%s",
             project_id,
             section_id,
+            optimization_id,
             response.status_code,
         )
     except Exception:
         logger.exception(
-            "code generation callback failed url=%s projectId=%s sectionId=%s",
+            "code generation callback failed url=%s projectId=%s sectionId=%s optimizationId=%s",
             callback_url,
             project_id,
             section_id,
+            optimization_id,
         )
 
 
