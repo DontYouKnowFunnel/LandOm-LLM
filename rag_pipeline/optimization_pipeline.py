@@ -112,6 +112,47 @@ def compact_intervention(result: Any, language: str = "en") -> dict[str, Any]:
         "source_reference": payload.get("source_reference", {}),
     }
 
+def select_top_intervention_per_problem(
+    interventions_by_problem: list[dict[str, Any]],
+    *,
+    max_items: int,
+    min_problem_score: float = MIN_PROBLEM_FINAL_SCORE,
+    min_revision_score: float = MIN_REVISION_FINAL_SCORE,
+) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    fallback: dict[str, Any] | None = None
+    seen_problem_cases: set[str] = set()
+    for group in interventions_by_problem:
+        problem = group.get("problem") or {}
+        problem_case = str(problem.get("problem_case") or "")
+        if not problem_case or problem_case in seen_problem_cases:
+            continue
+        interventions = group.get("interventions") or []
+        top_intervention = interventions[0] if interventions else None
+        if top_intervention is not None and fallback is None:
+            fallback = top_intervention
+        if (
+            float(problem.get("final_score") or 0.0) < min_problem_score
+            or top_intervention is None
+            or float(top_intervention.get("final_score") or 0.0) < min_revision_score
+        ):
+            continue
+
+        for intervention in interventions:
+            selected.append(intervention)
+            seen_problem_cases.add(problem_case)
+            break
+
+        if len(selected) >= max_items:
+            break
+    return selected or ([fallback] if fallback is not None else [])
+
+
+def normalize_provider(value: str | None) -> str:
+    provider = (value or "openai").strip().lower()
+    if provider in {"openai", "groq", "ollama"}:
+        return provider
+    return "openai"
 
 def dedupe_problems(problems: list[ProblemSearchResult]) -> list[ProblemSearchResult]:
     selected: list[ProblemSearchResult] = []

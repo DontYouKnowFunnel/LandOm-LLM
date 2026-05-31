@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 from typing import Any
@@ -116,11 +115,11 @@ def _process_optimization_and_callback(req: OptimizationRequest, callback_origin
         )
         return
 
-    optimization_plan = json.dumps(result["recommendation"], ensure_ascii=False, indent=2)
+    recommendations = result["recommendation"].get("recommendations", [])
     _send_optimization_plan_callback(
         project_id=req.projectId,
         section_id=req.sectionId,
-        optimization_plan=optimization_plan,
+        recommendations=recommendations,
         callback_origin=callback_origin,
     )
 
@@ -129,13 +128,13 @@ def _send_optimization_plan_callback(
     *,
     project_id: int,
     section_id: int,
-    optimization_plan: str,
+    recommendations: list[dict[str, Any]],
     callback_origin: str,
 ) -> None:
     payload: dict[str, Any] = {
         "projectId": project_id,
         "sectionId": section_id,
-        "optimizationPlan": optimization_plan,
+        "recommendations": recommendations,
     }
     callback_url = (
         f"{callback_origin.rstrip('/')}/api/v1/projects/{project_id}"
@@ -144,11 +143,11 @@ def _send_optimization_plan_callback(
 
     try:
         logger.info(
-            "callback started projectId=%s sectionId=%s url=%s payloadChars=%s",
+            "callback started projectId=%s sectionId=%s url=%s recommendationCount=%s",
             project_id,
             section_id,
             callback_url,
-            len(optimization_plan),
+            len(recommendations),
         )
         with httpx.Client(timeout=10.0) as client:
             response = client.patch(callback_url, json=payload)
