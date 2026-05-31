@@ -13,6 +13,7 @@ class AIModelConfig:
     embedding: ModelSpec = ("openai", "text-embedding-3-small")
     feature_extraction: ModelSpec = ("openai", "gpt-5.4-mini")
     recommendation: ModelSpec = ("openai", "gpt-5.4-mini")
+    code_generation: ModelSpec = ("openai", "gpt-5.4-mini")
 
 
 AI_MODELS = AIModelConfig()
