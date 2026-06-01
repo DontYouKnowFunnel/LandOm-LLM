@@ -29,6 +29,11 @@ Hard rules:
 - Keep the original section structure as much as possible. Make targeted edits to hierarchy,
   copy, CTA placement, proof elements, comparison blocks, FAQ, or reassurance text only when the
   recommendation calls for it.
+- Match the user-facing language of the input HTML. Detect the dominant language used in visible
+  copy, labels, CTA text, navigation, form text, alt text, and aria labels, then write all new or
+  revised user-facing text in that same language. If the input mixes languages, preserve the same
+  language pattern and do not translate brand names, product names, URLs, code identifiers, class
+  names, ids, data attributes, or existing technical terms.
 - Reuse existing classes, tokens, custom properties, media queries, and component patterns where
   possible. Add new classes only when necessary, and make them fit the existing naming style.
 - Do not invent unverifiable claims, metrics, testimonials, customer names, certifications, or
