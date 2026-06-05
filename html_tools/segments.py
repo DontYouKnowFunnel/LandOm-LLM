@@ -23,6 +23,9 @@ NOISE_TOKENS = {
     "veepn",
     "lock-screen",
     "banner",
+    "noise-overlay",
+    "mesh-gradient",
+    "orb",
 }
 
 
@@ -74,6 +77,14 @@ def meaningful_block_children(node: Tag) -> List[Tag]:
     return [child for child in direct_tag_children(node) if is_meaningful_block(child)]
 
 
+def direct_page_section_children(node: Tag) -> List[Tag]:
+    return [
+        child
+        for child in direct_tag_children(node)
+        if child.name in {"section", "article"} and is_meaningful_block(child)
+    ]
+
+
 def should_unwrap_single_child(parent: Tag, child: Tag) -> bool:
     if child.name not in {"div", "main"}:
         return False
@@ -88,11 +99,16 @@ def should_unwrap_single_child(parent: Tag, child: Tag) -> bool:
 
 def select_primary_content_root(root: Tag) -> Tag:
     main = root.find("main")
-    current = main if isinstance(main, Tag) else root
+    if isinstance(main, Tag):
+        current = main
+    elif len(direct_page_section_children(root)) >= 2:
+        current = root
+    else:
+        current = root
 
     if current is root:
         children = [child for child in direct_tag_children(root) if not is_noise_node(child)]
-        if children:
+        if children and len(direct_page_section_children(root)) < 2:
             current = max(children, key=node_content_score)
 
     while True:
@@ -168,14 +184,15 @@ def extract_page_segments(html: str, spec: Optional[CompressionSpec] = None) -> 
 def segments_to_prompt_input(segments: List[Dict[str, Any]]) -> str:
     prompt_items = []
     for segment in segments:
-        prompt_items.append(
-            {
-                "id": segment["id"],
-                "dom_id": segment.get("dom_id"),
-                "page_order": segment["page_order"],
-                "section_index": segment["section_index"],
-                "tag": segment["tag"],
-                "compressed_segment": segment["compressed_segment"],
-            }
-        )
+        item = {
+            "id": segment["id"],
+            "dom_id": segment.get("dom_id"),
+            "page_order": segment["page_order"],
+            "section_index": segment["section_index"],
+            "tag": segment["tag"],
+            "compressed_segment": segment["compressed_segment"],
+        }
+        if segment.get("source") == "llm_semantic_fallback":
+            item["text_excerpt"] = segment.get("text")
+        prompt_items.append(item)
     return json.dumps(prompt_items, ensure_ascii=False, indent=2)
