@@ -478,6 +478,7 @@ def _segment_from_candidate(candidate: SegmentCandidate, index: int, spec: Compr
         "heading_count": candidate.heading_count,
         "action_count": candidate.action_count,
         "text": candidate.text,
+        "source": "llm_semantic_fallback",
         "compressed_segment": compress_segment_node_denoised(
             candidate.node,
             spec,

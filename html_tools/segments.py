@@ -184,15 +184,15 @@ def extract_page_segments(html: str, spec: Optional[CompressionSpec] = None) -> 
 def segments_to_prompt_input(segments: List[Dict[str, Any]]) -> str:
     prompt_items = []
     for segment in segments:
-        prompt_items.append(
-            {
-                "id": segment["id"],
-                "dom_id": segment.get("dom_id"),
-                "page_order": segment["page_order"],
-                "section_index": segment["section_index"],
-                "tag": segment["tag"],
-                "text_excerpt": segment.get("text"),
-                "compressed_segment": segment["compressed_segment"],
-            }
-        )
+        item = {
+            "id": segment["id"],
+            "dom_id": segment.get("dom_id"),
+            "page_order": segment["page_order"],
+            "section_index": segment["section_index"],
+            "tag": segment["tag"],
+            "compressed_segment": segment["compressed_segment"],
+        }
+        if segment.get("source") == "llm_semantic_fallback":
+            item["text_excerpt"] = segment.get("text")
+        prompt_items.append(item)
     return json.dumps(prompt_items, ensure_ascii=False, indent=2)
