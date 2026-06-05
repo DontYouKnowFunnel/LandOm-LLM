@@ -191,6 +191,7 @@ def segments_to_prompt_input(segments: List[Dict[str, Any]]) -> str:
                 "page_order": segment["page_order"],
                 "section_index": segment["section_index"],
                 "tag": segment["tag"],
+                "text_excerpt": segment.get("text"),
                 "compressed_segment": segment["compressed_segment"],
             }
         )
