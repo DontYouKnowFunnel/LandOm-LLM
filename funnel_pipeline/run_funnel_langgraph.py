@@ -15,6 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from funnel_pipeline.config import AI_MODELS
+from html_tools.llm_semantic_segments import extract_page_segments_with_llm
 from html_tools.segments import extract_page_segments, segments_to_prompt_input
 from html_tools.spec import CompressionSpec
 from html_tools.transform import extract_body_html
@@ -51,6 +52,25 @@ def segment_html_node(state: FunnelState) -> FunnelState:
     segments = extract_page_segments(state["body_html"], spec=spec)
     if not segments:
         raise RuntimeError("No meaningful page segments were extracted from the input HTML.")
+
+    if len(segments) == 1:
+        provider = state.get("provider") or AI_MODELS.funnel_analysis[0]
+        model = state.get("model") or configured_model_for_provider(provider)
+        try:
+            llm_segments = extract_page_segments_with_llm(
+                state["body_html"],
+                spec=spec,
+                provider=provider,
+                model=model,
+            )
+        except Exception as exc:
+            print(f"LLM semantic segmentation fallback failed: {exc}")
+            llm_segments = []
+
+        if len(llm_segments) > 1:
+            print(f"LLM semantic segmentation fallback applied: 1 -> {len(llm_segments)} segments")
+            segments = llm_segments
+
     prompt_input = segments_to_prompt_input(segments)
     return {
         "segments": segments,
