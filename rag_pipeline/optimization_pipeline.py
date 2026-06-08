@@ -19,6 +19,7 @@ from rag_pipeline.llm_feature_extractor import extract_features_with_llm_html
 from rag_pipeline.problem_retriever import ProblemRetriever, ProblemSearchResult
 from rag_pipeline.recommendation_generator import generate_recommendation
 from rag_pipeline.retrieval_utils import openai_client, qdrant_client
+from rag_pipeline.wireframe_generator import attach_empty_wireframes, attach_wireframes
 
 
 PROBLEM_COLLECTION_NAME = "problem_patterns_en"
@@ -341,6 +342,44 @@ def run_optimization(
         elapsed_seconds=time.perf_counter() - recommendation_started_at,
         recommendation_count=len(recommendation.get("recommendations", [])),
     )
+    recommendation_items = recommendation.get("recommendations", [])
+    if isinstance(recommendation_items, list) and recommendation_items:
+        _, wireframe_model = AI_MODELS.code_generation
+        wireframe_started_at = time.perf_counter()
+        log_stage(
+            "wireframe generation started",
+            project_id=project_id,
+            section_id=section_id,
+            section_name=section_name,
+            model=wireframe_model,
+            recommendation_count=len(recommendation_items),
+        )
+        try:
+            recommendation["recommendations"] = attach_wireframes(
+                recommendations=recommendation_items,
+                section_html=section_html,
+                model=wireframe_model,
+                client=shared_openai,
+            )
+            wireframe_count = sum(
+                1 for item in recommendation["recommendations"] if item.get("wireframe")
+            )
+        except Exception:
+            logger.exception(
+                "wireframe generation failed projectId=%s sectionId=%s",
+                project_id,
+                section_id,
+            )
+            recommendation["recommendations"] = attach_empty_wireframes(recommendation_items)
+            wireframe_count = 0
+        log_stage(
+            "wireframe generation completed",
+            project_id=project_id,
+            section_id=section_id,
+            section_name=section_name,
+            elapsed_seconds=time.perf_counter() - wireframe_started_at,
+            wireframe_count=wireframe_count,
+        )
     log_stage(
         "optimization completed",
         project_id=project_id,
