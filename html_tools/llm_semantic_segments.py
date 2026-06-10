@@ -10,6 +10,9 @@ from typing import Any, Dict, Iterable, List, Optional
 from bs4 import Tag
 from openai import OpenAI
 
+from rag_pipeline.langsmith_tracking import traced_chat_completion
+from rag_pipeline.retrieval_utils import GROQ_BASE_URL
+
 from .hash_id import generate_hash
 from .segment_compress_denoised import compress_segment_node_denoised
 from .selector_lookup import build_css_selector
@@ -493,7 +496,7 @@ def _client_for_provider(provider: str) -> OpenAI:
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
             raise RuntimeError("GROQ_API_KEY is not set.")
-        return OpenAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+        return OpenAI(api_key=api_key, base_url=GROQ_BASE_URL)
 
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
@@ -504,14 +507,23 @@ def _client_for_provider(provider: str) -> OpenAI:
     raise RuntimeError(f"Unsupported provider for LLM segmentation: {provider}")
 
 
-def _request_segmentation(client: OpenAI, model: str, prompt: str) -> str:
+def _request_segmentation(client: OpenAI, provider: str, model: str, prompt: str) -> str:
     last_error: Exception | None = None
     for attempt in range(1, LLM_SEGMENTATION_MAX_RETRIES + 1):
         try:
-            response = client.chat.completions.create(
+            response = traced_chat_completion(
+                client=client,
+                request_kwargs={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0,
+                },
+                provider=provider,
                 model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0,
+                workflow="funnel.analysis",
+                stage="funnel.semantic_segmentation",
+                prompt_name="funnel.semantic_segmentation.v1",
+                metadata={"attempt": attempt},
             )
             return response.choices[0].message.content or ""
         except Exception as exc:
@@ -538,7 +550,7 @@ def extract_page_segments_with_llm(
 
     prompt = _build_prompt(candidates)
     client = _client_for_provider(provider)
-    raw = _request_segmentation(client, model, prompt)
+    raw = _request_segmentation(client, provider, model, prompt)
     selected_ids = _selected_ids_from_response(raw)
     selected_candidates = _dedupe_and_order(selected_ids, candidates)
 

@@ -1,6 +1,5 @@
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -8,13 +7,14 @@ from typing import Any, TypedDict
 
 from dotenv import load_dotenv
 from langgraph.graph import END, START, StateGraph
-from openai import OpenAI
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from funnel_pipeline.config import AI_MODELS
+from rag_pipeline.langsmith_tracking import traced_chat_completion
+from rag_pipeline.retrieval_utils import llm_client
 from html_tools.llm_semantic_segments import extract_page_segments_with_llm
 from html_tools.segments import extract_page_segments, segments_to_prompt_input
 from html_tools.spec import CompressionSpec
@@ -22,6 +22,10 @@ from html_tools.transform import extract_body_html
 
 
 PROMPT_PATH = Path("prompts/html_to_funnel_prompt.txt")
+DEFAULT_MODELS_BY_PROVIDER = {
+    "openai": "gpt-5.4-mini",
+    "groq": "meta-llama/llama-4-scout-17b-16e-instruct",
+}
 
 
 class FunnelState(TypedDict, total=False):
@@ -88,36 +92,25 @@ def compose_prompt_node(state: FunnelState) -> FunnelState:
 def configured_model_for_provider(provider: str) -> str:
     if provider == AI_MODELS.funnel_analysis[0]:
         return AI_MODELS.funnel_analysis[1]
+    if provider in DEFAULT_MODELS_BY_PROVIDER:
+        return DEFAULT_MODELS_BY_PROVIDER[provider]
     raise RuntimeError(f"No configured model for provider: {provider}")
 
 
 def resolve_client_config(state: FunnelState) -> tuple[str, str]:
     provider = state.get("provider") or AI_MODELS.funnel_analysis[0]
-
-    if provider == "openai":
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENAI_API_KEY is not set. Add it to your .env file.")
-    elif provider == "groq":
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise RuntimeError("GROQ_API_KEY is not set. Add it to your .env file.")
-    else:
+    if provider not in DEFAULT_MODELS_BY_PROVIDER:
         raise RuntimeError(f"Unsupported provider: {provider}")
 
     model = state.get("model") or configured_model_for_provider(provider)
-    return api_key, model
+    return provider, model
 
 
 def call_llm_node(state: FunnelState) -> FunnelState:
     provider = state.get("provider") or AI_MODELS.funnel_analysis[0]
-    api_key, model = resolve_client_config(state)
-    client_kwargs = {"api_key": api_key}
-    if provider == "groq":
-        client_kwargs["base_url"] = "https://api.groq.com/openai/v1"
-
-    client = OpenAI(**client_kwargs)
-    request_kwargs = {
+    provider, model = resolve_client_config(state)
+    client = llm_client(provider)
+    request_kwargs: dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "user", "content": state["prompt"]},
@@ -126,7 +119,16 @@ def call_llm_node(state: FunnelState) -> FunnelState:
     if provider == "openai":
         request_kwargs["reasoning_effort"] = "medium"
 
-    response = client.chat.completions.create(**request_kwargs)
+    response = traced_chat_completion(
+        client=client,
+        request_kwargs=request_kwargs,
+        provider=provider,
+        model=model,
+        workflow="funnel.analysis",
+        stage="funnel.analysis.classify",
+        prompt_name="funnel.html_to_funnel.v1",
+        metadata={"segment_count": len(state.get("segments") or [])},
+    )
     content = response.choices[0].message.content or ""
     return {"llm_raw_output": content.strip()}
 

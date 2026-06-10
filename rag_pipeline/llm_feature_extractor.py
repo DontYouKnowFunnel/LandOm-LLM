@@ -21,7 +21,8 @@ from rag_pipeline.features import (
     labels_en,
 )
 from rag_pipeline.html_preprocessor import preprocess_html_for_llm
-from rag_pipeline.retrieval_utils import openai_client
+from rag_pipeline.langsmith_tracking import traced_chat_completion
+from rag_pipeline.retrieval_utils import llm_client
 from rag_pipeline.taxonomy_definitions import (
     behavior_cluster_definitions_text,
     html_feature_definitions_text,
@@ -540,24 +541,36 @@ def infer_persona_traits_with_llm(
     section_label: str,
     client: OpenAI | None = None,
     model: str = AI_MODELS.feature_extraction[1],
+    provider: str = AI_MODELS.feature_extraction[0],
     max_traits: int = 4,
 ) -> tuple[list[str], dict[str, Any]]:
-    client = client or openai_client()
+    client = client or llm_client(provider)
     prompt = build_persona_prompt(
         persona_text=persona_text,
         section_label=section_label,
         max_traits=max_traits,
     )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    request_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
             {
                 "role": "system",
                 "content": "You classify a landing-page visitor persona into a controlled label set. Return valid JSON only.",
             },
             {"role": "user", "content": prompt},
         ],
-        reasoning_effort="medium",
+    }
+    if provider == "openai":
+        request_kwargs["reasoning_effort"] = "medium"
+    response = traced_chat_completion(
+        client=client,
+        request_kwargs=request_kwargs,
+        provider=provider,
+        model=model,
+        workflow="rag.optimization",
+        stage="rag.feature.persona",
+        prompt_name="rag.feature.persona.v1",
+        metadata={"section_label": section_label},
     )
     raw = response.choices[0].message.content or ""
     parsed = json.loads(extract_json_text(raw))
@@ -584,24 +597,36 @@ def infer_behavior_clusters_with_llm(
     section_label: str,
     client: OpenAI | None = None,
     model: str = AI_MODELS.feature_extraction[1],
+    provider: str = AI_MODELS.feature_extraction[0],
     max_clusters: int = 3,
 ) -> tuple[list[str], dict[str, Any]]:
-    client = client or openai_client()
+    client = client or llm_client(provider)
     prompt = build_behavior_prompt(
         events=events,
         section_label=section_label,
         max_clusters=max_clusters,
     )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    request_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
             {
                 "role": "system",
                 "content": "You classify landing-page visitor behavior logs into a controlled label set. Return valid JSON only.",
             },
             {"role": "user", "content": prompt},
         ],
-        reasoning_effort="medium",
+    }
+    if provider == "openai":
+        request_kwargs["reasoning_effort"] = "medium"
+    response = traced_chat_completion(
+        client=client,
+        request_kwargs=request_kwargs,
+        provider=provider,
+        model=model,
+        workflow="rag.optimization",
+        stage="rag.feature.behavior",
+        prompt_name="rag.feature.behavior.v1",
+        metadata={"section_label": section_label, "event_count": len(events)},
     )
     raw = response.choices[0].message.content or ""
     parsed = json.loads(extract_json_text(raw))
@@ -631,9 +656,10 @@ def infer_html_features_with_llm(
     behavior_clusters: list[str],
     client: OpenAI | None = None,
     model: str = AI_MODELS.feature_extraction[1],
+    provider: str = AI_MODELS.feature_extraction[0],
     max_features: int = 6,
 ) -> tuple[list[str], dict[str, Any]]:
-    client = client or openai_client()
+    client = client or llm_client(provider)
     prompt = build_html_prompt(
         html=html,
         section_label=section_label,
@@ -641,16 +667,27 @@ def infer_html_features_with_llm(
         behavior_clusters=behavior_clusters,
         max_features=max_features,
     )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    request_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
             {
                 "role": "system",
                 "content": "You classify landing-page section HTML into a controlled label set. Return valid JSON only.",
             },
             {"role": "user", "content": prompt},
         ],
-        reasoning_effort="medium",
+    }
+    if provider == "openai":
+        request_kwargs["reasoning_effort"] = "medium"
+    response = traced_chat_completion(
+        client=client,
+        request_kwargs=request_kwargs,
+        provider=provider,
+        model=model,
+        workflow="rag.optimization",
+        stage="rag.feature.html",
+        prompt_name="rag.feature.html.v1",
+        metadata={"section_label": section_label, "html_chars": len(html)},
     )
     raw = response.choices[0].message.content or ""
     parsed = json.loads(extract_json_text(raw))
@@ -676,11 +713,12 @@ def infer_structured_features_with_llm(
     html_features_override: list[str] | None = None,
     client: OpenAI | None = None,
     model: str = AI_MODELS.feature_extraction[1],
+    provider: str = AI_MODELS.feature_extraction[0],
     max_traits: int = 4,
     max_clusters: int = 3,
     max_features: int = 6,
 ) -> tuple[list[str], list[str], list[str], dict[str, Any]]:
-    client = client or openai_client()
+    client = client or llm_client(provider)
     prompt = build_structured_feature_prompt(
         html=html,
         section_label=section_label,
@@ -693,9 +731,9 @@ def infer_structured_features_with_llm(
         behavior_clusters_override=behavior_clusters_override,
         html_features_override=html_features_override,
     )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    request_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [
             {
                 "role": "system",
                 "content": (
@@ -705,7 +743,22 @@ def infer_structured_features_with_llm(
             },
             {"role": "user", "content": prompt},
         ],
-        reasoning_effort="medium",
+    }
+    if provider == "openai":
+        request_kwargs["reasoning_effort"] = "medium"
+    response = traced_chat_completion(
+        client=client,
+        request_kwargs=request_kwargs,
+        provider=provider,
+        model=model,
+        workflow="rag.optimization",
+        stage="rag.feature.structured",
+        prompt_name="rag.feature.structured.v1",
+        metadata={
+            "section_label": section_label,
+            "html_chars": len(html),
+            "event_count": len(events),
+        },
     )
     raw = response.choices[0].message.content or ""
     parsed = json.loads(extract_json_text(raw))
@@ -738,6 +791,7 @@ def extract_features_with_llm_html(
     html_features_override: list[str] | None = None,
     client: OpenAI | None = None,
     model: str = AI_MODELS.feature_extraction[1],
+    provider: str = AI_MODELS.feature_extraction[0],
     max_features: int = 6,
 ) -> ExtractedFeatures:
     base_features = extract_features(
@@ -765,6 +819,7 @@ def extract_features_with_llm_html(
             html_features_override=html_features_override,
             client=client,
             model=model,
+            provider=provider,
             max_features=max_features,
         )
     )

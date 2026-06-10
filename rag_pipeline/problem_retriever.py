@@ -105,6 +105,7 @@ class ProblemRetriever:
         qdrant_path: Path | None = DEFAULT_EMBEDDED_QDRANT_DIR,
         collection_name: str = "problem_patterns_en",
         embedding_model: str = AI_MODELS.embedding[1],
+        embedding_provider: str = AI_MODELS.embedding[0],
         weights: dict[str, float] | None = None,
         qdrant: QdrantClient | None = None,
         openai: Any | None = None,
@@ -113,6 +114,7 @@ class ProblemRetriever:
         self.openai = openai or openai_client()
         self.collection_name = collection_name
         self.embedding_model = embedding_model
+        self.embedding_provider = embedding_provider
         self.weights = resolve_problem_weights(weights)
 
     def search(
@@ -123,7 +125,12 @@ class ProblemRetriever:
         candidate_k: int = 200,
         use_section_filter: bool = False,
     ) -> list[ProblemSearchResult]:
-        query_vector = embed_query(self.openai, features.query_text_en, self.embedding_model)
+        query_vector = embed_query(
+            self.openai,
+            features.query_text_en,
+            self.embedding_model,
+            self.embedding_provider,
+        )
         results = self.qdrant.search(
             collection_name=self.collection_name,
             query_vector=query_vector,
