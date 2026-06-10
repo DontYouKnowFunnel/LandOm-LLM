@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_LANGSMITH_PROJECT = "trackerLLM"
+DEFAULT_LANGSMITH_PROJECT = "LandOm"
 _TRUTHY = {"1", "true", "yes", "on"}
 _FALSY = {"0", "false", "no", "off"}
 
