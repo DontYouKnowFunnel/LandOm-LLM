@@ -15,7 +15,7 @@ from rag_pipeline.langsmith_tracking import traced_embedding_create
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EMBEDDED_QDRANT_DIR = PROJECT_ROOT / "runs/qdrant"
-OPENAI_TIMEOUT_SECONDS = 120.0
+OPENAI_TIMEOUT_SECONDS = 180.0
 QDRANT_TIMEOUT_SECONDS = 10.0
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 _EMBEDDING_CACHE: dict[tuple[str, str], list[float]] = {}

@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from rag_pipeline.config import AI_MODELS
+from rag_pipeline.config import AI_MODELS, REASONING_EFFORTS
 from rag_pipeline.html_preprocessor import preprocess_html_for_llm
 from rag_pipeline.langsmith_tracking import traced_chat_completion
 from rag_pipeline.retrieval_utils import llm_client
@@ -388,7 +388,7 @@ def generate_with_llm(
         ],
     }
     if provider == "openai":
-        request_kwargs["reasoning_effort"] = "medium"
+        request_kwargs["reasoning_effort"] = REASONING_EFFORTS["recommendation"]
     response = traced_chat_completion(
         client=client,
         request_kwargs=request_kwargs,

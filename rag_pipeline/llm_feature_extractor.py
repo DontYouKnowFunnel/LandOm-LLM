@@ -10,7 +10,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from rag_pipeline.config import AI_MODELS
+from rag_pipeline.config import AI_MODELS, REASONING_EFFORTS
 from rag_pipeline.features import (
     BEHAVIOR_CLUSTERS,
     HTML_FEATURES,
@@ -561,7 +561,7 @@ def infer_persona_traits_with_llm(
         ],
     }
     if provider == "openai":
-        request_kwargs["reasoning_effort"] = "medium"
+        request_kwargs["reasoning_effort"] = REASONING_EFFORTS["feature_extraction"]
     response = traced_chat_completion(
         client=client,
         request_kwargs=request_kwargs,
@@ -617,7 +617,7 @@ def infer_behavior_clusters_with_llm(
         ],
     }
     if provider == "openai":
-        request_kwargs["reasoning_effort"] = "medium"
+        request_kwargs["reasoning_effort"] = REASONING_EFFORTS["feature_extraction"]
     response = traced_chat_completion(
         client=client,
         request_kwargs=request_kwargs,
@@ -678,7 +678,7 @@ def infer_html_features_with_llm(
         ],
     }
     if provider == "openai":
-        request_kwargs["reasoning_effort"] = "medium"
+        request_kwargs["reasoning_effort"] = REASONING_EFFORTS["feature_extraction"]
     response = traced_chat_completion(
         client=client,
         request_kwargs=request_kwargs,
@@ -745,7 +745,7 @@ def infer_structured_features_with_llm(
         ],
     }
     if provider == "openai":
-        request_kwargs["reasoning_effort"] = "medium"
+        request_kwargs["reasoning_effort"] = REASONING_EFFORTS["feature_extraction"]
     response = traced_chat_completion(
         client=client,
         request_kwargs=request_kwargs,

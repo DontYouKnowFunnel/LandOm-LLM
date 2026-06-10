@@ -8,7 +8,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from rag_pipeline.config import AI_MODELS
+from rag_pipeline.config import AI_MODELS, REASONING_EFFORTS
 from rag_pipeline.langsmith_tracking import (
     trace_tags,
     trace_workflow,
@@ -108,7 +108,7 @@ def generate_codegen(
             ],
         }
         if provider == "openai":
-            request_kwargs["reasoning_effort"] = "medium"
+            request_kwargs["reasoning_effort"] = REASONING_EFFORTS["code_generation"]
         response = traced_chat_completion(
             client=client,
             request_kwargs=request_kwargs,

@@ -8,7 +8,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from rag_pipeline.config import AI_MODELS
+from rag_pipeline.config import AI_MODELS, REASONING_EFFORTS
 from rag_pipeline.html_preprocessor import preprocess_html_for_llm
 from rag_pipeline.langsmith_tracking import traced_chat_completion
 from rag_pipeline.retrieval_utils import llm_client
@@ -78,7 +78,7 @@ def generate_wireframes(
         ],
     }
     if provider == "openai":
-        request_kwargs["reasoning_effort"] = "medium"
+        request_kwargs["reasoning_effort"] = REASONING_EFFORTS["wireframe"]
     response = traced_chat_completion(
         client=resolved_client,
         request_kwargs=request_kwargs,

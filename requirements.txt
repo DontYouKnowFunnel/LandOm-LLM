@@ -6,4 +6,5 @@ langsmith>=0.8.5
 openai==1.68.2
 python-dotenv==1.0.1
 qdrant-client==1.11.3
+tinycss2==1.4.0
 uvicorn==0.30.6
