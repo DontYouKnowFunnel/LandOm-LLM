@@ -56,7 +56,25 @@ python3 -m pip install -r requirements.txt
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
+GROQ_API_KEY=your_groq_api_key
 BACKEND_BASE_URL=https://backend.example.com
+```
+
+LangSmith 비용/프롬프트/workflow 추적을 사용할 경우:
+
+```env
+LANGSMITH_API_KEY=your_langsmith_api_key
+LANGSMITH_PROJECT=trackerLLM
+LANGSMITH_TRACING=true
+```
+
+서버는 `LANGSMITH_API_KEY`가 있을 때 자동으로 LangSmith trace를 켭니다. `/api/v1/funnels/analyze`는 `funnel.analysis`, `/api/v1/funnels/optimize`는 `rag.optimization`, `/api/v1/funnels/codegen`은 `rag.codegen` workflow로 기록됩니다. 각 LLM span에는 비용 계산을 위해 `ls_provider`, `ls_model_name`, `usage_metadata`가 포함되고, 프롬프트는 `prompt_name` 메타데이터와 실제 messages 입력으로 추적됩니다.
+
+Groq 모델 가격이 LangSmith 기본 가격표에 없으면 LangSmith Settings의 model pricing에 아래 키로 가격을 등록합니다.
+
+```text
+provider: groq
+model: meta-llama/llama-4-scout-17b-16e-instruct
 ```
 
 원격 Qdrant 서버를 사용할 경우:

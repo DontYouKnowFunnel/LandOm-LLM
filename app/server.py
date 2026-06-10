@@ -165,6 +165,8 @@ def _process_codegen_and_callback(req: CodegenRequest, callback_origin: str) -> 
             optimization_plan=req.optimizationPlans,
             html=req.sectionHtml,
             css=req.sectionCss,
+            project_id=req.projectId,
+            section_id=req.sectionId,
         )
         if not result["html"]:
             raise RuntimeError("code generation returned empty html")

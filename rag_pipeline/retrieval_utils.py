@@ -10,20 +10,38 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from qdrant_client import QdrantClient
 
+from rag_pipeline.langsmith_tracking import traced_embedding_create
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EMBEDDED_QDRANT_DIR = PROJECT_ROOT / "runs/qdrant"
-OPENAI_TIMEOUT_SECONDS = 90.0
+OPENAI_TIMEOUT_SECONDS = 120.0
 QDRANT_TIMEOUT_SECONDS = 10.0
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 _EMBEDDING_CACHE: dict[tuple[str, str], list[float]] = {}
 
 
 def openai_client() -> OpenAI:
+    return llm_client("openai")
+
+
+def llm_client(provider: str = "openai") -> OpenAI:
     load_dotenv(PROJECT_ROOT / ".env")
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env before retrieval.")
-    return OpenAI(api_key=api_key, timeout=OPENAI_TIMEOUT_SECONDS)
+    if provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY is not set. Add it to .env before retrieval.")
+        return OpenAI(api_key=api_key, timeout=OPENAI_TIMEOUT_SECONDS)
+    if provider == "groq":
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY is not set. Add it to .env before retrieval.")
+        return OpenAI(
+            api_key=api_key,
+            base_url=GROQ_BASE_URL,
+            timeout=OPENAI_TIMEOUT_SECONDS,
+        )
+    raise RuntimeError(f"Unsupported LLM provider: {provider}")
 
 
 def qdrant_client(
@@ -54,14 +72,26 @@ def qdrant_client(
     return QdrantClient(path=str(raw_path))
 
 
-def embed_query(client: OpenAI, query_text: str, model: str) -> list[float]:
+def embed_query(
+    client: OpenAI,
+    query_text: str,
+    model: str,
+    provider: str = "openai",
+) -> list[float]:
     cache_key = (model, query_text)
     if cache_key in _EMBEDDING_CACHE:
         return _EMBEDDING_CACHE[cache_key]
-    response = client.embeddings.create(
+    response = traced_embedding_create(
+        client=client,
+        request_kwargs={
+            "model": model,
+            "input": [query_text],
+            "encoding_format": "float",
+        },
+        provider=provider,
         model=model,
-        input=[query_text],
-        encoding_format="float",
+        workflow="rag.optimization",
+        stage="rag.embedding.query",
     )
     embedding = response.data[0].embedding
     _EMBEDDING_CACHE[cache_key] = embedding
