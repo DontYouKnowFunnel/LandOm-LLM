@@ -21,7 +21,7 @@ class AIModelConfig:
 AI_MODELS = AIModelConfig()
 
 REASONING_EFFORTS: dict[str, ReasoningEffort] = {
-    "feature_extraction": "low",
+    "feature_extraction": "medium",
     "recommendation": "medium",
     "wireframe": "low",
     "code_generation": "medium",
