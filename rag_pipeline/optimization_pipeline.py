@@ -15,10 +15,12 @@ from rag_pipeline.behavior_normalizer import normalize_visitor_behavior_data
 from rag_pipeline.config import AI_MODELS
 from rag_pipeline.features import ExtractedFeatures
 from rag_pipeline.intervention_retriever import InterventionRetriever
+from rag_pipeline.langsmith_tracking import trace_tags, trace_workflow
 from rag_pipeline.llm_feature_extractor import extract_features_with_llm_html
 from rag_pipeline.problem_retriever import ProblemRetriever, ProblemSearchResult
 from rag_pipeline.recommendation_generator import generate_recommendation
-from rag_pipeline.retrieval_utils import openai_client, qdrant_client
+from rag_pipeline.retrieval_utils import llm_client, qdrant_client
+from rag_pipeline.wireframe_generator import attach_empty_wireframes, attach_wireframes
 
 
 PROBLEM_COLLECTION_NAME = "problem_patterns_en"
@@ -178,6 +180,41 @@ def run_optimization(
     project_id: int | None = None,
     section_id: int | None = None,
 ) -> dict[str, Any]:
+    workflow = "rag.optimization"
+    with trace_workflow(
+        name=workflow,
+        inputs={
+            "section_name": section_name,
+            "html_chars": len(section_html),
+            "persona_present": bool(persona),
+            "visitor_behavior_shape": type(visitor_behavior_data).__name__,
+        },
+        metadata={
+            "project_id": project_id,
+            "section_id": section_id,
+            "section_name": section_name,
+        },
+        tags=trace_tags(workflow=workflow),
+    ):
+        return _run_optimization_impl(
+            section_html=section_html,
+            section_name=section_name,
+            persona=persona,
+            visitor_behavior_data=visitor_behavior_data,
+            project_id=project_id,
+            section_id=section_id,
+        )
+
+
+def _run_optimization_impl(
+    *,
+    section_html: str,
+    section_name: str,
+    persona: str | None,
+    visitor_behavior_data: dict[str, Any] | list[dict[str, Any]] | None,
+    project_id: int | None = None,
+    section_id: int | None = None,
+) -> dict[str, Any]:
     started_at = time.perf_counter()
     log_stage(
         "optimization started",
@@ -194,10 +231,15 @@ def run_optimization(
         section_name=section_name,
         event_count=len(events),
     )
-    shared_openai = openai_client()
+    embedding_provider, embedding_model = AI_MODELS.embedding
+    feature_provider, feature_model = AI_MODELS.feature_extraction
+    embedding_client = llm_client(embedding_provider)
+    feature_client = (
+        embedding_client
+        if feature_provider == embedding_provider
+        else llm_client(feature_provider)
+    )
     shared_qdrant = qdrant_client()
-    _, embedding_model = AI_MODELS.embedding
-    _, feature_model = AI_MODELS.feature_extraction
 
     feature_started_at = time.perf_counter()
     log_stage(
@@ -212,8 +254,9 @@ def run_optimization(
         section_label=section_name,
         persona_text=persona,
         behavior_events=events,
-        client=shared_openai,
+        client=feature_client,
         model=feature_model,
+        provider=feature_provider,
         max_features=MAX_LLM_HTML_FEATURES,
     )
     log_stage(
@@ -230,8 +273,9 @@ def run_optimization(
     problem_retriever = ProblemRetriever(
         collection_name=PROBLEM_COLLECTION_NAME,
         embedding_model=embedding_model,
+        embedding_provider=embedding_provider,
         qdrant=shared_qdrant,
-        openai=shared_openai,
+        openai=embedding_client,
     )
     problem_started_at = time.perf_counter()
     log_stage(
@@ -262,8 +306,9 @@ def run_optimization(
     intervention_retriever = InterventionRetriever(
         collection_name=REVISION_COLLECTION_NAME,
         embedding_model=embedding_model,
+        embedding_provider=embedding_provider,
         qdrant=shared_qdrant,
-        openai=shared_openai,
+        openai=embedding_client,
     )
     interventions_by_problem = []
     revision_started_at = time.perf_counter()
@@ -341,6 +386,49 @@ def run_optimization(
         elapsed_seconds=time.perf_counter() - recommendation_started_at,
         recommendation_count=len(recommendation.get("recommendations", [])),
     )
+    recommendation_items = recommendation.get("recommendations", [])
+    if isinstance(recommendation_items, list) and recommendation_items:
+        code_generation_provider, wireframe_model = AI_MODELS.code_generation
+        code_generation_client = (
+            feature_client
+            if code_generation_provider == feature_provider
+            else llm_client(code_generation_provider)
+        )
+        wireframe_started_at = time.perf_counter()
+        log_stage(
+            "wireframe generation started",
+            project_id=project_id,
+            section_id=section_id,
+            section_name=section_name,
+            model=wireframe_model,
+            recommendation_count=len(recommendation_items),
+        )
+        try:
+            recommendation["recommendations"] = attach_wireframes(
+                recommendations=recommendation_items,
+                section_html=section_html,
+                model=wireframe_model,
+                client=code_generation_client,
+            )
+            wireframe_count = sum(
+                1 for item in recommendation["recommendations"] if item.get("wireframe")
+            )
+        except Exception:
+            logger.exception(
+                "wireframe generation failed projectId=%s sectionId=%s",
+                project_id,
+                section_id,
+            )
+            recommendation["recommendations"] = attach_empty_wireframes(recommendation_items)
+            wireframe_count = 0
+        log_stage(
+            "wireframe generation completed",
+            project_id=project_id,
+            section_id=section_id,
+            section_name=section_name,
+            elapsed_seconds=time.perf_counter() - wireframe_started_at,
+            wireframe_count=wireframe_count,
+        )
     log_stage(
         "optimization completed",
         project_id=project_id,

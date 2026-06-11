@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from typing import Any
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
-from rag_pipeline.config import AI_MODELS
-from rag_pipeline.retrieval_utils import OPENAI_TIMEOUT_SECONDS, PROJECT_ROOT
+from rag_pipeline.config import AI_MODELS, REASONING_EFFORTS
+from rag_pipeline.langsmith_tracking import (
+    trace_tags,
+    trace_workflow,
+    traced_chat_completion,
+)
+from rag_pipeline.retrieval_utils import llm_client
 
 
 CODEGEN_SYSTEM_PROMPT = """
@@ -65,24 +68,60 @@ def generate_codegen(
     css: str,
     selected_recommendation_ranks: list[int] | None = None,
     model: str | None = None,
+    project_id: int | None = None,
+    section_id: int | None = None,
 ) -> dict[str, str]:
-    client, resolved_model = resolve_client(model)
-    response = client.chat.completions.create(
-        model=resolved_model,
-        messages=[
-            {"role": "system", "content": CODEGEN_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": codegen_user_prompt(
-                    optimization_plan=optimization_plan,
-                    html=html,
-                    css=css,
-                    selected_recommendation_ranks=selected_recommendation_ranks,
-                ),
+    client, provider, resolved_model = resolve_client(model)
+    workflow = "rag.codegen"
+    stage = "rag.codegen.generate"
+    with trace_workflow(
+        name=workflow,
+        inputs={
+            "html_chars": len(html),
+            "css_chars": len(css),
+            "optimization_plan_count": len(optimization_plan)
+            if isinstance(optimization_plan, list)
+            else 1,
+            "selected_recommendation_ranks": selected_recommendation_ranks,
+        },
+        metadata={
+            "project_id": project_id,
+            "section_id": section_id,
+            "provider": provider,
+            "model": resolved_model,
+        },
+        tags=trace_tags(workflow=workflow, stage=stage),
+    ):
+        request_kwargs: dict[str, Any] = {
+            "model": resolved_model,
+            "messages": [
+                {"role": "system", "content": CODEGEN_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": codegen_user_prompt(
+                        optimization_plan=optimization_plan,
+                        html=html,
+                        css=css,
+                        selected_recommendation_ranks=selected_recommendation_ranks,
+                    ),
+                },
+            ],
+        }
+        if provider == "openai":
+            request_kwargs["reasoning_effort"] = REASONING_EFFORTS["code_generation"]
+        response = traced_chat_completion(
+            client=client,
+            request_kwargs=request_kwargs,
+            provider=provider,
+            model=resolved_model,
+            workflow=workflow,
+            stage=stage,
+            prompt_name="rag.codegen.html_css.v1",
+            metadata={
+                "project_id": project_id,
+                "section_id": section_id,
             },
-        ],
-        reasoning_effort="medium",
-    )
+        )
     content = response.choices[0].message.content or ""
     parsed = json.loads(extract_json_text(content))
     return {
@@ -91,15 +130,9 @@ def generate_codegen(
     }
 
 
-def resolve_client(model: str | None) -> tuple[OpenAI, str]:
-    load_dotenv(PROJECT_ROOT / ".env")
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set.")
-    return OpenAI(
-        api_key=api_key,
-        timeout=OPENAI_TIMEOUT_SECONDS,
-    ), (model or AI_MODELS.code_generation[1])
+def resolve_client(model: str | None) -> tuple[OpenAI, str, str]:
+    provider, configured_model = AI_MODELS.code_generation
+    return llm_client(provider), provider, (model or configured_model)
 
 
 def codegen_user_prompt(

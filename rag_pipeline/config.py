@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 ModelSpec = tuple[str, str]
+ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh"]
 
 
 @dataclass(frozen=True)
@@ -17,3 +19,10 @@ class AIModelConfig:
 
 
 AI_MODELS = AIModelConfig()
+
+REASONING_EFFORTS: dict[str, ReasoningEffort] = {
+    "feature_extraction": "medium",
+    "recommendation": "medium",
+    "wireframe": "low",
+    "code_generation": "medium",
+}

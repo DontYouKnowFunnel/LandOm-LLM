@@ -5,14 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
 
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from openai import OpenAI
 
 
@@ -20,14 +18,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from rag_pipeline.config import AI_MODELS
+from rag_pipeline.config import AI_MODELS, REASONING_EFFORTS
 from rag_pipeline.html_preprocessor import preprocess_html_for_llm
+from rag_pipeline.langsmith_tracking import traced_chat_completion
+from rag_pipeline.retrieval_utils import llm_client
 
 
 DEFAULT_RETRIEVAL_JSON = PROJECT_ROOT / "run/rag_retrieval_smoke_override.json"
 DEFAULT_OUTPUT_JSON = PROJECT_ROOT / "run/rag_recommendation.json"
 DEFAULT_OUTPUT_MD = PROJECT_ROOT / "run/rag_recommendation.md"
-OPENAI_TIMEOUT_SECONDS = 150.0
 
 
 PERSONA_TRAIT_DESCRIPTIONS_KO = {
@@ -283,15 +282,9 @@ def compact_generation_context(
     }
 
 
-def resolve_client(model: str | None) -> tuple[OpenAI, str]:
-    load_dotenv(PROJECT_ROOT / ".env")
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set.")
-    return OpenAI(
-        api_key=api_key,
-        timeout=OPENAI_TIMEOUT_SECONDS,
-    ), (model or AI_MODELS.recommendation[1])
+def resolve_client(model: str | None) -> tuple[OpenAI, str, str]:
+    provider, configured_model = AI_MODELS.recommendation
+    return llm_client(provider), provider, (model or configured_model)
 
 
 def recommendation_prompt(context: dict[str, Any]) -> str:
@@ -383,8 +376,7 @@ def generate_with_llm(
     context: dict[str, Any],
     model: str | None,
 ) -> dict[str, Any]:
-    provider = AI_MODELS.recommendation[0]
-    client, resolved_model = resolve_client(model)
+    client, provider, resolved_model = resolve_client(model)
     request_kwargs: dict[str, Any] = {
         "model": resolved_model,
         "messages": [
@@ -395,8 +387,21 @@ def generate_with_llm(
             {"role": "user", "content": recommendation_prompt(context)},
         ],
     }
-    request_kwargs["reasoning_effort"] = "medium"
-    response = client.chat.completions.create(**request_kwargs)
+    if provider == "openai":
+        request_kwargs["reasoning_effort"] = REASONING_EFFORTS["recommendation"]
+    response = traced_chat_completion(
+        client=client,
+        request_kwargs=request_kwargs,
+        provider=provider,
+        model=resolved_model,
+        workflow="rag.optimization",
+        stage="rag.recommendation.generate",
+        prompt_name="rag.recommendation.v1",
+        metadata={
+            "section_label": context.get("section_label"),
+            "candidate_intervention_count": len(context.get("candidate_interventions") or []),
+        },
+    )
     content = response.choices[0].message.content or ""
     parsed = json.loads(extract_json_text(content))
     parsed["_generation_metadata"] = {

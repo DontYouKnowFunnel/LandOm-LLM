@@ -151,6 +151,7 @@ class InterventionRetriever:
         qdrant_path: Path | None = DEFAULT_EMBEDDED_QDRANT_DIR,
         collection_name: str = "intervention_evidence_en",
         embedding_model: str = AI_MODELS.embedding[1],
+        embedding_provider: str = AI_MODELS.embedding[0],
         weights: dict[str, float] | None = None,
         qdrant: QdrantClient | None = None,
         openai: Any | None = None,
@@ -159,6 +160,7 @@ class InterventionRetriever:
         self.openai = openai or openai_client()
         self.collection_name = collection_name
         self.embedding_model = embedding_model
+        self.embedding_provider = embedding_provider
         self.weights = resolve_intervention_weights(weights)
 
     def search_for_problem(
@@ -176,7 +178,12 @@ class InterventionRetriever:
             problem_payload=problem.payload,
             features=features,
         )
-        query_vector = embed_query(self.openai, query_text, self.embedding_model)
+        query_vector = embed_query(
+            self.openai,
+            query_text,
+            self.embedding_model,
+            self.embedding_provider,
+        )
         results = self.qdrant.search(
             collection_name=self.collection_name,
             query_vector=query_vector,

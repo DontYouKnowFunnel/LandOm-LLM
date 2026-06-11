@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from app.pipeline import run as run_pipeline
 from rag_pipeline.code_generator import generate_codegen
 from rag_pipeline.optimization_pipeline import run_optimization
+from rag_pipeline.section_css_extractor import extract_relevant_section_css
 
 logger = logging.getLogger("uvicorn.error")
 logger.setLevel(logging.INFO)
@@ -161,10 +162,21 @@ def _process_optimization_and_callback(req: OptimizationRequest, callback_origin
 
 def _process_codegen_and_callback(req: CodegenRequest, callback_origin: str) -> None:
     try:
+        filtered_css = extract_relevant_section_css(req.sectionHtml, req.sectionCss)
+        logger.info(
+            "code generation css filtered projectId=%s sectionId=%s sectionCssLength=%s "
+            "filteredSectionCssLength=%s",
+            req.projectId,
+            req.sectionId,
+            len(req.sectionCss),
+            len(filtered_css),
+        )
         result = generate_codegen(
             optimization_plan=req.optimizationPlans,
             html=req.sectionHtml,
-            css=req.sectionCss,
+            css=filtered_css,
+            project_id=req.projectId,
+            section_id=req.sectionId,
         )
         if not result["html"]:
             raise RuntimeError("code generation returned empty html")
